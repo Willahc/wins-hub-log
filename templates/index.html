@@ -1,9 +1,9 @@
-{% extends "base.html" %}
-{% block title %}Dashboard — WiNS Hub Log{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Dashboard â€” WiNS Hub Log{% endblock %}
 
 {% block content %}
 
-{# ── Cards de stats por corredor ─────────────────────────────────────────── #}
+{# â”€â”€ Cards de stats por corredor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
 <div class="row g-2 mb-3">
   {% for nome, s in stats.items() %}
   <div class="col-6 col-md-4">
@@ -27,12 +27,12 @@
   {% endfor %}
 </div>
 
-{# ── Barra de filtros ─────────────────────────────────────────────────────── #}
+{# â”€â”€ Barra de filtros â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
 <div class="filter-bar p-3 mb-3">
   <form method="GET" class="row g-2 align-items-end">
     <div class="col-12 col-md-3">
       <input type="text" name="q" class="form-control form-control-sm"
-             placeholder="Buscar empresa, CNPJ, sócio..." value="{{ filtros.q }}">
+             placeholder="Buscar empresa, CNPJ, sÃ³cio..." value="{{ filtros.q }}">
     </div>
     <div class="col-6 col-md-2">
       <select name="corredor" class="form-select form-select-sm">
@@ -64,7 +64,7 @@
       <div class="form-check form-switch ms-1 mt-1">
         <input class="form-check-input" type="checkbox" name="cnae_frete" value="1" id="cnaeCheck"
                {% if filtros.cnae_frete == '1' %}checked{% endif %}>
-        <label class="form-check-label small" for="cnaeCheck">Só CNAE frete</label>
+        <label class="form-check-label small" for="cnaeCheck">SÃ³ CNAE frete</label>
       </div>
     </div>
     <div class="col-12 col-md-2 d-flex gap-1">
@@ -78,13 +78,13 @@
   </form>
 </div>
 
-{# ── Toolbar: importar / exportar ─────────────────────────────────────────── #}
+{# â”€â”€ Toolbar: importar / exportar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
   <div class="text-muted small">
     <strong class="text-white">{{ empresas|length }}</strong> empresas
     {% if ultimo_log %}
-      &nbsp;·&nbsp;
-      <span class="text-muted">Última importação:
+      &nbsp;Â·&nbsp;
+      <span class="text-muted">Ãšltima importaÃ§Ã£o:
         <span id="ultimo-status">{{ ultimo_log.mensagem }}</span>
         ({{ ultimo_log.iniciado.strftime('%d/%m %H:%M') }})
       </span>
@@ -117,7 +117,7 @@
   </div>
 </div>
 
-{# Barra de progresso importação #}
+{# Barra de progresso importaÃ§Ã£o #}
 <div id="import-progress" class="mb-2">
   <div class="d-flex justify-content-between small mb-1">
     <span id="prog-msg">Importando...</span>
@@ -129,7 +129,7 @@
   </div>
 </div>
 
-{# ── Tabela ───────────────────────────────────────────────────────────────── #}
+{# â”€â”€ Tabela â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
 {% if empresas %}
 <div class="table-responsive">
   <table class="table table-sm table-hover align-middle mb-0">
@@ -137,9 +137,9 @@
       <tr>
         <th>Empresa</th>
         <th>Corredor</th>
-        <th>Município</th>
+        <th>MunicÃ­pio</th>
         <th>Telefone</th>
-        <th>Sócios</th>
+        <th>SÃ³cios</th>
         <th>CNAE</th>
         <th>Status</th>
         <th></th>
@@ -151,7 +151,7 @@
         <td>
           <div class="fw-semibold" style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
                title="{{ e.razao_social or e.nome_rntrc }}">
-            {{ e.razao_social or e.nome_rntrc or '—' }}
+            {{ e.razao_social or e.nome_rntrc or 'â€”' }}
           </div>
           <a href="https://www.cnpj.ws/{{ e.cnpj.replace('.','').replace('/','').replace('-','') }}"
              target="_blank" class="cnpj-link">{{ e.cnpj }}</a>
@@ -168,25 +168,25 @@
               <i class="bi bi-telephone me-1 text-success"></i>{{ e.telefone }}
             </a>
           {% else %}
-            <span class="text-muted">—</span>
+            <span class="text-muted">â€”</span>
           {% endif %}
         </td>
         <td>
           <span class="text-muted small" style="max-width:160px; display:block; overflow:hidden;
                 text-overflow:ellipsis; white-space:nowrap;" title="{{ e.socios }}">
-            {{ e.socios or '—' }}
+            {{ e.socios or 'â€”' }}
           </span>
         </td>
         <td>
           {% if e.tem_cnae_frete %}
             <span class="badge bg-success"><i class="bi bi-check"></i> Frete</span>
           {% else %}
-            <span class="badge" style="background:#334155;">{{ e.cnae_principal or '—' }}</span>
+            <span class="badge" style="background:#334155;">{{ e.cnae_principal or 'â€”' }}</span>
           {% endif %}
         </td>
         <td>
-          <span class="badge badge-{{ e.status_crm }}" id="badge-{{ e.id }}">
-            {{ status_labels[e.status_crm][0] }}
+          <span class="badge badge-{{ e.status_crm if e.status_crm else 'nao_contatada' }}" id="badge-{{ e.id }}">
+            {{ status_labels[e.status_crm if e.status_crm else 'nao_contatada'][0] }}
           </span>
         </td>
         <td>
@@ -202,7 +202,7 @@
         <div class="offcanvas-header border-bottom" style="border-color:#334155 !important">
           <div>
             <h6 class="offcanvas-title mb-0">{{ e.razao_social or e.nome_rntrc }}</h6>
-            <small class="text-muted">{{ e.cnpj }} · {{ e.corredor }}</small>
+            <small class="text-muted">{{ e.cnpj }} Â· {{ e.corredor }}</small>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
@@ -215,7 +215,7 @@
             {% if e.email %}<div><i class="bi bi-envelope text-muted me-1"></i>{{ e.email }}</div>{% endif %}
             {% if e.socios %}<div><i class="bi bi-person text-muted me-1"></i>{{ e.socios }}</div>{% endif %}
             {% if e.porte %}<div><i class="bi bi-building text-muted me-1"></i>{{ e.porte }}</div>{% endif %}
-            {% if e.data_abertura %}<div class="text-muted">Fundação: {{ e.data_abertura }}</div>{% endif %}
+            {% if e.data_abertura %}<div class="text-muted">FundaÃ§Ã£o: {{ e.data_abertura }}</div>{% endif %}
           </div>
           <div class="mb-3">
             <a href="https://www.cnpj.ws/{{ e.cnpj.replace('.','').replace('/','').replace('-','') }}"
@@ -239,7 +239,7 @@
             <div class="mb-3">
               <label class="form-label small text-muted">Notas</label>
               <textarea name="notas" class="form-control form-control-sm" rows="4"
-                        placeholder="Resultado da ligação, nome do contato, próximos passos...">{{ e.notas or '' }}</textarea>
+                        placeholder="Resultado da ligaÃ§Ã£o, nome do contato, prÃ³ximos passos...">{{ e.notas or '' }}</textarea>
             </div>
             <button type="submit" class="btn btn-sm w-100"
                     style="background: var(--wins-amber); color:#000; font-weight:600;">
@@ -257,7 +257,7 @@
 <div class="text-center py-5 text-muted">
   <i class="bi bi-inbox" style="font-size:2rem"></i>
   <p class="mt-2">Nenhuma empresa encontrada.<br>
-  Importe um corredor usando o botão acima.</p>
+  Importe um corredor usando o botÃ£o acima.</p>
 </div>
 {% endif %}
 
@@ -283,7 +283,7 @@ async function salvarStatus(e, id) {
   }
 }
 
-// Polling do progresso de importação
+// Polling do progresso de importaÃ§Ã£o
 {% if ultimo_log and ultimo_log.status == 'rodando' %}
 const logId = {{ ultimo_log.id }};
 const prog  = document.getElementById('import-progress');
