@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — WiNS Hub Log{% endblock %}
+
+{% block content %}
+
+{# ── Cards de stats por corredor ─────────────────────────────────────────── #}
+<div class="row g-2 mb-3">
+  {% for nome, s in stats.items() %}
+  <div class="col-6 col-md-4">
+    <div class="stat-card p-3">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="text-muted small mb-1">{{ nome }}</div>
+          <div class="stat-num">{{ s.total }}</div>
+          <div class="text-muted" style="font-size:0.75rem">
+            <i class="bi bi-check-circle text-success me-1"></i>{{ s.com_frete }} com CNAE frete
+            &nbsp;|&nbsp;
+            <i class="bi bi-star-fill text-warning me-1"></i>{{ s.clientes }} clientes
+          </div>
+        </div>
+        <span class="badge badge-corredor" style="background:#334155;">
+          {{ corredores[nome].assimetria }} vazio
+        </span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Barra de filtros ─────────────────────────────────────────────────────── #}
+<div class="filter-bar p-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-12 col-md-3">
+      <input type="text" name="q" class="form-control form-control-sm"
+             placeholder="Buscar empresa, CNPJ, sócio..." value="{{ filtros.q }}">
+    </div>
+    <div class="col-6 col-md-2">
+      <select name="corredor" class="form-select form-select-sm">
+        <option value="">Todos corredores</option>
+        {% for nome in corredores %}
+          <option value="{{ nome }}" {% if filtros.corredor == nome %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-1">
+      <select name="uf" class="form-select form-select-sm">
+        <option value="">UF</option>
+        {% for u in ufs %}
+          <option value="{{ u }}" {% if filtros.uf == u %}selected{% endif %}>{{ u }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <select name="status" class="form-select form-select-sm">
+        <option value="">Todos status</option>
+        {% for s in status_list %}
+          <option value="{{ s }}" {% if filtros.status == s %}selected{% endif %}>
+            {{ status_labels[s][0] }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="form-check form-switch ms-1 mt-1">
+        <input class="form-check-input" type="checkbox" name="cnae_frete" value="1" id="cnaeCheck"
+               {% if filtros.cnae_frete == '1' %}checked{% endif %}>
+        <label class="form-check-label small" for="cnaeCheck">Só CNAE frete</label>
+      </div>
+    </div>
+    <div class="col-12 col-md-2 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+        <i class="bi bi-funnel"></i> Filtrar
+      </button>
+      <a href="/" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-x"></i>
+      </a>
+    </div>
+  </form>
+</div>
+
+{# ── Toolbar: importar / exportar ─────────────────────────────────────────── #}
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <div class="text-muted small">
+    <strong class="text-white">{{ empresas|length }}</strong> empresas
+    {% if ultimo_log %}
+      &nbsp;·&nbsp;
+      <span class="text-muted">Última importação:
+        <span id="ultimo-status">{{ ultimo_log.mensagem }}</span>
+        ({{ ultimo_log.iniciado.strftime('%d/%m %H:%M') }})
+      </span>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {# Importar corredor #}
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-cloud-download"></i> Importar corredor
+      </button>
+      <ul class="dropdown-menu">
+        {% for nome in corredores %}
+        <li>
+          <form method="POST" action="/importar" class="px-3 py-1">
+            <input type="hidden" name="corredor" value="{{ nome }}">
+            <button type="submit" class="btn btn-sm btn-link text-light p-0">
+              {{ nome }} ({{ corredores[nome].assimetria }} vazio)
+            </button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {# Exportar CSV #}
+    <a href="/exportar?corredor={{ filtros.corredor }}&status={{ filtros.status }}"
+       class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-download"></i> Exportar CSV
+    </a>
+  </div>
+</div>
+
+{# Barra de progresso importação #}
+<div id="import-progress" class="mb-2">
+  <div class="d-flex justify-content-between small mb-1">
+    <span id="prog-msg">Importando...</span>
+    <span id="prog-pct">0%</span>
+  </div>
+  <div class="progress" style="height:6px">
+    <div id="prog-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+         style="width:0%"></div>
+  </div>
+</div>
+
+{# ── Tabela ───────────────────────────────────────────────────────────────── #}
+{% if empresas %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle mb-0">
+    <thead style="background: #1e293b; position:sticky; top:0; z-index:1;">
+      <tr>
+        <th>Empresa</th>
+        <th>Corredor</th>
+        <th>Município</th>
+        <th>Telefone</th>
+        <th>Sócios</th>
+        <th>CNAE</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in empresas %}
+      <tr id="row-{{ e.id }}">
+        <td>
+          <div class="fw-semibold" style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+               title="{{ e.razao_social or e.nome_rntrc }}">
+            {{ e.razao_social or e.nome_rntrc or '—' }}
+          </div>
+          <a href="https://www.cnpj.ws/{{ e.cnpj.replace('.','').replace('/','').replace('-','') }}"
+             target="_blank" class="cnpj-link">{{ e.cnpj }}</a>
+        </td>
+        <td>
+          <span class="badge" style="background:#334155; font-size:0.7rem;">{{ e.corredor }}</span>
+        </td>
+        <td>
+          <span class="text-muted">{{ e.municipio }}/{{ e.uf }}</span>
+        </td>
+        <td>
+          {% if e.telefone %}
+            <a href="tel:{{ e.telefone }}" class="text-light text-decoration-none">
+              <i class="bi bi-telephone me-1 text-success"></i>{{ e.telefone }}
+            </a>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="text-muted small" style="max-width:160px; display:block; overflow:hidden;
+                text-overflow:ellipsis; white-space:nowrap;" title="{{ e.socios }}">
+            {{ e.socios or '—' }}
+          </span>
+        </td>
+        <td>
+          {% if e.tem_cnae_frete %}
+            <span class="badge bg-success"><i class="bi bi-check"></i> Frete</span>
+          {% else %}
+            <span class="badge" style="background:#334155;">{{ e.cnae_principal or '—' }}</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="badge badge-{{ e.status_crm }}" id="badge-{{ e.id }}">
+            {{ status_labels[e.status_crm][0] }}
+          </span>
+        </td>
+        <td>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                  data-bs-toggle="offcanvas" data-bs-target="#painel-{{ e.id }}">
+            <i class="bi bi-pencil-square"></i>
+          </button>
+        </td>
+      </tr>
+
+      {# Offcanvas de notas/status por empresa #}
+      <div class="offcanvas offcanvas-end" id="painel-{{ e.id }}" style="width:380px">
+        <div class="offcanvas-header border-bottom" style="border-color:#334155 !important">
+          <div>
+            <h6 class="offcanvas-title mb-0">{{ e.razao_social or e.nome_rntrc }}</h6>
+            <small class="text-muted">{{ e.cnpj }} · {{ e.corredor }}</small>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body">
+          {# Dados #}
+          <div class="mb-3 small">
+            <div><i class="bi bi-geo-alt text-muted me-1"></i>{{ e.municipio }}/{{ e.uf }}</div>
+            {% if e.logradouro %}<div class="text-muted">{{ e.logradouro }}, {{ e.bairro }}</div>{% endif %}
+            {% if e.telefone %}<div><i class="bi bi-telephone text-success me-1"></i>{{ e.telefone }}</div>{% endif %}
+            {% if e.email %}<div><i class="bi bi-envelope text-muted me-1"></i>{{ e.email }}</div>{% endif %}
+            {% if e.socios %}<div><i class="bi bi-person text-muted me-1"></i>{{ e.socios }}</div>{% endif %}
+            {% if e.porte %}<div><i class="bi bi-building text-muted me-1"></i>{{ e.porte }}</div>{% endif %}
+            {% if e.data_abertura %}<div class="text-muted">Fundação: {{ e.data_abertura }}</div>{% endif %}
+          </div>
+          <div class="mb-3">
+            <a href="https://www.cnpj.ws/{{ e.cnpj.replace('.','').replace('/','').replace('-','') }}"
+               target="_blank" class="btn btn-sm btn-outline-warning w-100">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Ver no CNPJ.ws
+            </a>
+          </div>
+
+          {# CRM #}
+          <form onsubmit="salvarStatus(event, {{ e.id }})">
+            <div class="mb-2">
+              <label class="form-label small text-muted">Status CRM</label>
+              <select name="status_crm" id="sel-{{ e.id }}" class="form-select form-select-sm">
+                {% for s in status_list %}
+                  <option value="{{ s }}" {% if e.status_crm == s %}selected{% endif %}>
+                    {{ status_labels[s][0] }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small text-muted">Notas</label>
+              <textarea name="notas" class="form-control form-control-sm" rows="4"
+                        placeholder="Resultado da ligação, nome do contato, próximos passos...">{{ e.notas or '' }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-sm w-100"
+                    style="background: var(--wins-amber); color:#000; font-weight:600;">
+              <i class="bi bi-check-lg me-1"></i>Salvar
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-inbox" style="font-size:2rem"></i>
+  <p class="mt-2">Nenhuma empresa encontrada.<br>
+  Importe um corredor usando o botão acima.</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Salvar status/notas via fetch
+async function salvarStatus(e, id) {
+  e.preventDefault();
+  const form   = e.target;
+  const data   = new FormData(form);
+  const resp   = await fetch(`/empresa/${id}`, { method: 'POST', body: data });
+  const json   = await resp.json();
+  if (json.ok) {
+    const badge  = document.getElementById(`badge-${id}`);
+    const labels = {{ status_labels | tojson }};
+    badge.textContent = labels[json.status][0];
+    badge.className   = `badge badge-${json.status}`;
+    // Fechar offcanvas
+    const oc = bootstrap.Offcanvas.getInstance(document.getElementById(`painel-${id}`));
+    if (oc) oc.hide();
+  }
+}
+
+// Polling do progresso de importação
+{% if ultimo_log and ultimo_log.status == 'rodando' %}
+const logId = {{ ultimo_log.id }};
+const prog  = document.getElementById('import-progress');
+const bar   = document.getElementById('prog-bar');
+const msg   = document.getElementById('prog-msg');
+const pct   = document.getElementById('prog-pct');
+prog.style.display = 'block';
+
+const poll = setInterval(async () => {
+  const r = await fetch(`/status-importacao/${logId}`);
+  const d = await r.json();
+  bar.style.width = d.pct + '%';
+  msg.textContent = d.mensagem;
+  pct.textContent = d.pct + '%';
+  if (d.status !== 'rodando') {
+    clearInterval(poll);
+    if (d.status === 'concluido') setTimeout(() => location.reload(), 1500);
+  }
+}, 2000);
+{% endif %}
+</script>
+{% endblock %}

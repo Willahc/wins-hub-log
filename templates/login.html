@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Login — WiNS Hub Log{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-sm-8 col-md-4">
+    <div class="text-center mb-4">
+      <i class="bi bi-truck" style="font-size:2.5rem; color: var(--wins-amber)"></i>
+      <h4 class="mt-2 fw-bold">WiNS Hub Log</h4>
+      <small class="text-muted">Inteligência de Frete</small>
+    </div>
+
+    <div class="card" style="background: var(--wins-card); border: 1px solid #334155;">
+      <div class="card-body p-4">
+        <form method="POST">
+          <div class="mb-3">
+            <label class="form-label text-muted small">Senha de acesso</label>
+            <input type="password" name="senha" class="form-control" autofocus required>
+          </div>
+          <button type="submit" class="btn w-100" style="background: var(--wins-amber); color: #000; font-weight: 600;">
+            Entrar
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
