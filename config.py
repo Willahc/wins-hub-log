@@ -1,17 +1,18 @@
-import os
+﻿import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class Config:
     SECRET_KEY      = os.environ.get("SECRET_KEY", "dev-key-insegura")
-    DATABASE_URL    = os.environ.get("DATABASE_URL", "sqlite:///local.db")
+        _db_url = os.environ.get("DATABASE_URL", "sqlite:///local.db")
+    DATABASE_URL    = _db_url.replace("postgresql://", "postgresql+psycopg://").replace("postgres://", "postgresql+psycopg://")
     ADMIN_PASSWORD  = os.environ.get("ADMIN_PASSWORD", "admin123")
     FLASK_ENV       = os.environ.get("FLASK_ENV", "development")
 
     # Corredores mapeados pelo CIOT (assimetria confirmada)
     CORREDORES = {
-        "SP→DF": {
+        "SPâ†’DF": {
             "uf_origem": "SP",
             "assimetria": "79,2%",
             "municipios": [
@@ -20,7 +21,7 @@ class Config:
                 "SUMARE", "JUNDIAI", "CRAVINHOS", "IRACEMAPOLIS",
             ],
         },
-        "SC→SP": {
+        "SCâ†’SP": {
             "uf_origem": "SC",
             "assimetria": "84,3%",
             "municipios": [
@@ -29,7 +30,7 @@ class Config:
                 "BRUSQUE", "CONCORDIA", "SAO JOSE",
             ],
         },
-        "MS→PR": {
+        "MSâ†’PR": {
             "uf_origem": "MS",
             "assimetria": "77,7%",
             "municipios": [
@@ -57,7 +58,7 @@ class Config:
     ]
 
     STATUS_LABELS = {
-        "nao_contatada": ("Não contatada", "secondary"),
+        "nao_contatada": ("NÃ£o contatada", "secondary"),
         "tentativa":     ("Tentativa",     "warning"),
         "contatada":     ("Contatada",     "info"),
         "interessada":   ("Interessada",   "primary"),
