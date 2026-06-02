@@ -36,8 +36,8 @@ def enriquecer_cnpj(cnpj):
     except: return {}
 
 def baixar_rntrc():
-    meta = requests.get(Config.RNTRC_META_URL, timeout=30).json()
-    raw  = urllib.request.urlopen(meta["result"]["url"]).read()
+    meta = requests.get(Config.RNTRC_META_URL, timeout=60).json()
+    raw  = urllib.request.urlopen(meta["result"]["url"], timeout=120).read()
     lines = raw.decode("latin-1").splitlines()
     reader = csv.DictReader(lines, delimiter=";")
     return list(reader)
