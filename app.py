@@ -51,6 +51,8 @@ def logout():
 
 # ─── Dashboard principal ──────────────────────────────────────────────────────
 
+PAGE_SIZE = 100
+
 @app.route("/")
 @login_required
 def index():
@@ -59,63 +61,78 @@ def index():
     status    = request.args.get("status", "")
     cnae_ok   = request.args.get("cnae_frete", "")
     busca     = request.args.get("q", "").strip()
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+    except ValueError:
+        page = 1
+
+    tem_filtro = bool(corredor or uf or status or cnae_ok == "1" or busca)
+
+    # Stats em UMA query agregada (era N×3 queries antes)
+    stats = {nome: {"total": 0, "com_frete": 0, "clientes": 0} for nome in Config.CORREDORES}
+    agregados = db.session.query(
+        Transportadora.corredor,
+        db.func.count().label("total"),
+        db.func.sum(db.case((Transportadora.tem_cnae_frete.is_(True), 1), else_=0)).label("com_frete"),
+        db.func.sum(db.case((Transportadora.status_crm == "cliente", 1), else_=0)).label("clientes"),
+    ).group_by(Transportadora.corredor).all()
+    for cor, total, com_frete, clientes in agregados:
+        if cor in stats:
+            stats[cor] = {"total": int(total or 0),
+                          "com_frete": int(com_frete or 0),
+                          "clientes":  int(clientes or 0)}
+
+    ultimo_log = ImportLog.query.order_by(ImportLog.iniciado.desc()).first()
+    ufs = [r[0] for r in db.session.query(Transportadora.uf).distinct().order_by(Transportadora.uf).all() if r[0]]
+
+    # Sem filtro → não carrega lista (cards stats + prompt). Evita render de 7k linhas.
+    if not tem_filtro:
+        return render_template(
+            "index.html",
+            empresas=[], total_empresas=0, page=1, total_pages=1, page_size=PAGE_SIZE,
+            stats=stats, corredores=Config.CORREDORES,
+            status_labels=Config.STATUS_LABELS, status_list=Config.STATUS_CRM,
+            ultimo_log=ultimo_log,
+            filtros=dict(corredor="", uf="", status="", cnae_frete="", q=""),
+            ufs=ufs, sem_filtro=True,
+        )
 
     query = Transportadora.query
-
-    if corredor:
-        query = query.filter_by(corredor=corredor)
-    if uf:
-        query = query.filter_by(uf=uf)
-    if status:
-        query = query.filter_by(status_crm=status)
+    if corredor: query = query.filter_by(corredor=corredor)
+    if uf:       query = query.filter_by(uf=uf)
+    if status:   query = query.filter_by(status_crm=status)
     if cnae_ok == "1":
         query = query.filter_by(tem_cnae_frete=True)
     if busca:
         like = f"%{busca}%"
-        query = query.filter(
-            db.or_(
-                Transportadora.razao_social.ilike(like),
-                Transportadora.nome_rntrc.ilike(like),
-                Transportadora.cnpj.ilike(like),
-                Transportadora.municipio.ilike(like),
-                Transportadora.socios.ilike(like),
-            )
-        )
+        query = query.filter(db.or_(
+            Transportadora.razao_social.ilike(like),
+            Transportadora.nome_rntrc.ilike(like),
+            Transportadora.cnpj.ilike(like),
+            Transportadora.municipio.ilike(like),
+            Transportadora.socios.ilike(like),
+        ))
 
-    empresas = query.order_by(
+    query = query.order_by(
         Transportadora.tem_cnae_frete.desc(),
         Transportadora.status_crm,
         Transportadora.razao_social,
-    ).all()
+    )
 
-    # Estatísticas por corredor
-    stats = {}
-    for nome_corredor in Config.CORREDORES:
-        total     = Transportadora.query.filter_by(corredor=nome_corredor).count()
-        com_frete = Transportadora.query.filter_by(corredor=nome_corredor, tem_cnae_frete=True).count()
-        clientes  = Transportadora.query.filter_by(corredor=nome_corredor, status_crm="cliente").count()
-        stats[nome_corredor] = {
-            "total":     total,
-            "com_frete": com_frete,
-            "clientes":  clientes,
-        }
-
-    # Último log de importação
-    ultimo_log = ImportLog.query.order_by(ImportLog.iniciado.desc()).first()
-
-    ufs = [r[0] for r in db.session.query(Transportadora.uf).distinct().order_by(Transportadora.uf).all() if r[0]]
+    total_empresas = query.count()
+    total_pages = max(1, (total_empresas + PAGE_SIZE - 1) // PAGE_SIZE)
+    page = min(page, total_pages)
+    empresas = query.limit(PAGE_SIZE).offset((page - 1) * PAGE_SIZE).all()
 
     return render_template(
         "index.html",
-        empresas      = empresas,
-        stats         = stats,
-        corredores    = Config.CORREDORES,
-        status_labels = Config.STATUS_LABELS,
-        status_list   = Config.STATUS_CRM,
-        ultimo_log    = ultimo_log,
-        filtros       = dict(corredor=corredor, uf=uf, status=status,
-                             cnae_frete=cnae_ok, q=busca),
-        ufs           = ufs,
+        empresas=empresas, total_empresas=total_empresas,
+        page=page, total_pages=total_pages, page_size=PAGE_SIZE,
+        stats=stats, corredores=Config.CORREDORES,
+        status_labels=Config.STATUS_LABELS, status_list=Config.STATUS_CRM,
+        ultimo_log=ultimo_log,
+        filtros=dict(corredor=corredor, uf=uf, status=status, cnae_frete=cnae_ok, q=busca),
+        ufs=ufs, sem_filtro=False,
     )
 
 
