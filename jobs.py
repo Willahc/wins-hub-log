@@ -1,6 +1,7 @@
 ﻿import io, time, threading, unicodedata, urllib.request, csv
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
+from sqlalchemy.exc import IntegrityError
 from config import Config
 from models import db, Transportadora, ImportLog
 
@@ -15,6 +16,8 @@ def formatar_cnpj(c):
     c = limpar_cnpj(c)
     return f"{c[:2]}.{c[2:5]}.{c[5:8]}/{c[8:12]}-{c[12:14]}" if len(c)==14 else c
 
+CNAES_FRETE = {"4930201","4930202","4930203","4930204"}
+
 def enriquecer_cnpj(cnpj):
     try:
         r = requests.get(Config.BRASILAPI_URL.format(cnpj), timeout=10)
@@ -22,14 +25,16 @@ def enriquecer_cnpj(cnpj):
         d = r.json()
         tel = f"({d['ddd_telefone_1']}) {d.get('telefone_1','')}" if d.get("ddd_telefone_1") else ""
         cnae = str(d.get("cnae_fiscal",""))
-        cnaes = [cnae] + [str(c.get("codigo","")) for c in d.get("cnaes_secundarios",[])]
-        socios = ", ".join(s.get("nome_socio","") for s in d.get("qsa",[])[:3])
+        secundarios = [str(c.get("codigo","")) for c in d.get("cnaes_secundarios",[])]
+        cnaes = [cnae] + secundarios
+        socios = ", ".join(s.get("nome_socio","") for s in d.get("qsa",[]) if s.get("nome_socio"))
         capital = None
         try: capital = float(d.get("capital_social",0) or 0)
         except: pass
         return {"razao_social":d.get("razao_social",""),"nome_fantasia":d.get("nome_fantasia",""),
                 "situacao_rf":d.get("descricao_situacao_cadastral",""),"data_abertura":d.get("data_inicio_atividade",""),
-                "cnae_principal":cnae,"tem_cnae_frete":"4930202" in cnaes,
+                "cnae_principal":cnae,"tem_cnae_frete":bool(CNAES_FRETE & set(cnaes)),
+                "cnaes_secundarios":",".join(secundarios),
                 "logradouro":d.get("logradouro",""),"bairro":d.get("bairro",""),"cep":d.get("cep",""),
                 "telefone":tel,"email":d.get("email",""),"porte":d.get("porte",""),
                 "capital_social":capital,"socios":socios}
@@ -78,6 +83,7 @@ def rodar_importacao(app, corredor, log_id):
                 e.razao_social=dados.get("razao_social",""); e.nome_fantasia=dados.get("nome_fantasia","")
                 e.situacao_rf=dados.get("situacao_rf",""); e.data_abertura=dados.get("data_abertura","")
                 e.cnae_principal=dados.get("cnae_principal",""); e.tem_cnae_frete=dados.get("tem_cnae_frete",False)
+                e.cnaes_secundarios=dados.get("cnaes_secundarios","")
                 e.logradouro=dados.get("logradouro",""); e.bairro=dados.get("bairro",""); e.cep=dados.get("cep","")
                 e.telefone=dados.get("telefone",""); e.email=dados.get("email","")
                 e.porte=dados.get("porte",""); e.capital_social=dados.get("capital_social")
@@ -87,10 +93,38 @@ def rodar_importacao(app, corredor, log_id):
         except Exception as ex:
             log.status="erro"; log.mensagem=str(ex); db.session.commit()
 
+STALE_RODANDO_MIN = 30  # job iniciado há > 30 min sem heartbeat = job morto
+
 def iniciar_importacao(app, corredor):
+    """Retorna (log_id, ja_rodava). ja_rodava=True quando reaproveitou job em andamento."""
     with app.app_context():
+        # Marca como erro jobs zumbis (worker reciclado / Render dormiu durante import)
+        cutoff = datetime.utcnow() - timedelta(minutes=STALE_RODANDO_MIN)
+        zumbis = ImportLog.query.filter(ImportLog.status == "rodando",
+                                        ImportLog.iniciado < cutoff).all()
+        for z in zumbis:
+            z.status = "erro"
+            z.mensagem = (z.mensagem or "") + " [marcado como zumbi automaticamente]"
+            z.finalizado = datetime.utcnow()
+        if zumbis:
+            db.session.commit()
+
+        # Camada 1: check rápido antes de tentar criar
+        existing = ImportLog.query.filter_by(corredor=corredor, status="rodando").first()
+        if existing:
+            return existing.id, True
+
+        # Camada 2: tenta criar; índice unique parcial impede 2º worker no mesmo corredor
         log = ImportLog(corredor=corredor, status="rodando", mensagem="Iniciando...")
-        db.session.add(log); db.session.commit(); log_id = log.id
+        try:
+            db.session.add(log)
+            db.session.commit()
+            log_id = log.id
+        except IntegrityError:
+            db.session.rollback()
+            existing = ImportLog.query.filter_by(corredor=corredor, status="rodando").first()
+            return (existing.id, True) if existing else (None, False)
+
     t = threading.Thread(target=rodar_importacao, args=(app, corredor, log_id), daemon=True)
     t.start()
-    return log_id
+    return log_id, False

@@ -1,5 +1,6 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Index, text
 
 db = SQLAlchemy()
 
@@ -19,6 +20,7 @@ class Transportadora(db.Model):
     socios         = db.Column(db.Text)
     cnae_principal = db.Column(db.String(10))
     tem_cnae_frete = db.Column(db.Boolean, default=False)
+    cnaes_secundarios = db.Column(db.Text)
     porte          = db.Column(db.String(50))
     capital_social = db.Column(db.Float)
     situacao_rf    = db.Column(db.String(50))
@@ -67,3 +69,12 @@ class ImportLog(db.Model):
     mensagem   = db.Column(db.Text)
     iniciado   = db.Column(db.DateTime, default=datetime.utcnow)
     finalizado = db.Column(db.DateTime)
+
+    __table_args__ = (
+        Index(
+            "import_logs_rodando_uniq",
+            "corredor",
+            unique=True,
+            postgresql_where=text("status = 'rodando'"),
+        ),
+    )

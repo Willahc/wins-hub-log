@@ -142,8 +142,13 @@ def importar():
     if corredor not in Config.CORREDORES:
         return jsonify({"erro": "Corredor inválido"}), 400
 
-    log_id = iniciar_importacao(app, corredor)
-    flash(f"Importação do corredor {corredor} iniciada (log #{log_id}). Aguarde alguns minutos.", "info")
+    log_id, ja_rodava = iniciar_importacao(app, corredor)
+    if log_id is None:
+        flash(f"Não foi possível iniciar importação de {corredor}. Tente novamente.", "danger")
+    elif ja_rodava:
+        flash(f"Importação de {corredor} já está em andamento (log #{log_id}). Aguarde a anterior concluir.", "warning")
+    else:
+        flash(f"Importação do corredor {corredor} iniciada (log #{log_id}). Aguarde alguns minutos.", "info")
     return redirect(url_for("index"))
 
 

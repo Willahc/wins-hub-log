@@ -26,6 +26,11 @@ class Config:
             "assimetria": "77,7%",
             "municipios": ["CAMPO GRANDE","DOURADOS","TRES LAGOAS","CORUMBA","PARANAIBA","SIDROLANDIA","NOVA ANDRADINA","NAVIRAI"],
         },
+        "MG->SP": {
+            "uf_origem": "MG",
+            "assimetria": "?",
+            "municipios": ["UBERLANDIA","UBERABA","ARAGUARI","BETIM","CONTAGEM","SETE LAGOAS","IPATINGA","TIMOTEO","VARGINHA","POUSO ALEGRE","EXTREMA"],
+        },
     }
 
     RNTRC_RESOURCE_ID = "ac349216-d199-4fd5-a34d-ca56fc6bcf19"
