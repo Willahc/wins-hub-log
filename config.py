@@ -36,7 +36,12 @@ class Config:
     RNTRC_RESOURCE_ID = "ac349216-d199-4fd5-a34d-ca56fc6bcf19"
     RNTRC_META_URL    = f"https://dados.antt.gov.br/api/3/action/resource_show?id=ac349216-d199-4fd5-a34d-ca56fc6bcf19"
     BRASILAPI_URL     = "https://brasilapi.com.br/api/cnpj/v1/{}"
+    # Tempo entre chamadas de API externas (segundos) — usado para evitar bursts
     DELAY_API_S       = 0.4
+    # Configuráveis para chamadas à BrasilAPI
+    BRASILAPI_TIMEOUT = float(os.environ.get("BRASILAPI_TIMEOUT", 10))
+    BRASILAPI_MAX_RETRIES = int(os.environ.get("BRASILAPI_MAX_RETRIES", 3))
+    BRASILAPI_BACKOFF_FACTOR = float(os.environ.get("BRASILAPI_BACKOFF_FACTOR", 0.5))
 
     STATUS_CRM = ["nao_contatada","tentativa","contatada","interessada","negociando","cliente","descartada"]
     STATUS_LABELS = {
