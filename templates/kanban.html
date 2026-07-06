@@ -152,20 +152,25 @@
   </a>
 </div>
 
-{# ── Quadro Kanban ────────────────────────────────────────────────────────── #}
-{% set matches_exist = false %}
-{% for col, cards in quadro.items() %}
-  {% if cards %}{% set matches_exist = true %}{% endif %}
-{% endfor %}
-
 {% if matches_exist %}
 <div class="kanban-board">
   {% for col_nome, cards in quadro.items() %}
   <div class="kanban-column" data-status="{{ col_nome }}">
     <div class="kanban-column-header">
       <span class="text-white fw-bold">{{ col_nome }}</span>
-      <span class="badge bg-secondary">{{ cards | length }}</span>
+      <span class="badge bg-secondary">
+        {% if col_nome == 'Sugerido' %}
+          {{ total_sugeridos }}
+        {% else %}
+          {{ cards | length }}
+        {% endif %}
+      </span>
     </div>
+    {% if col_nome == 'Sugerido' and total_sugeridos > cards | length %}
+      <div class="text-muted px-2 py-1 bg-dark border-bottom border-secondary" style="font-size: 0.65rem;">
+        <i class="bi bi-funnel-fill text-warning me-1"></i> Exibindo {{ cards | length }} de {{ total_sugeridos }} sugeridos
+      </div>
+    {% endif %}
     <div class="kanban-cards-container" ondragover="allowDrop(event)" ondrop="drop(event)">
       {% for m in cards %}
       <div class="kanban-card" id="card-{{ m.id }}" data-match-id="{{ m.id }}" draggable="true" ondragstart="dragStart(event)" ondragend="dragEnd(event)">

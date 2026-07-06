@@ -1411,38 +1411,47 @@ def kanban_quadro():
         
     matches_all = query.order_by(MatchPreditivo.score_match.desc()).all()
     
+    colunas_nomes = ["Sugerido", "Validar", "Abordar", "Em contato", "Negociando", "Fechado", "Perdido", "Descartado"]
+    quadro = {c: [] for c in colunas_nomes}
+    
+    total_sugeridos = 0
+    for m in matches_all:
+        status_c = m.status if m.status in quadro else "Sugerido"
+        if status_c == "Sugerido":
+            total_sugeridos += 1
+            if len(quadro["Sugerido"]) < 100:
+                quadro["Sugerido"].append(m)
+        else:
+            quadro[status_c].append(m)
+            
     from radar.prospeccao import (gerar_mensagem_embarcador, 
                                   gerar_mensagem_transportadora, 
                                   gerar_assunto_email, 
                                   montar_link_whatsapp)
     
-    for m in matches_all:
-        m.prospeccao_total = len(m.prospeccoes)
-        if m.prospeccoes:
-            ordenados = sorted(m.prospeccoes, key=lambda x: x.created_at, reverse=True)
-            m.prospeccao_ultimo_status = ordenados[0].status
-            m.prospeccao_ultima_data = ordenados[0].created_at.strftime("%d/%m %H:%M")
-        else:
-            m.prospeccao_ultimo_status = "Pendente"
-            m.prospeccao_ultima_data = "—"
+    for status_c, cards in quadro.items():
+        for m in cards:
+            m.prospeccao_total = len(m.prospeccoes)
+            if m.prospeccoes:
+                ordenados = sorted(m.prospeccoes, key=lambda x: x.created_at, reverse=True)
+                m.prospeccao_ultimo_status = ordenados[0].status
+                m.prospeccao_ultima_data = ordenados[0].created_at.strftime("%d/%m %H:%M")
+            else:
+                m.prospeccao_ultimo_status = "Pendente"
+                m.prospeccao_ultima_data = "—"
+                
+            # Links e mensagens rápidas
+            msg_emb = gerar_mensagem_embarcador(m)
+            msg_transp = gerar_mensagem_transportadora(m)
             
-        # Links e mensagens rápidas
-        msg_emb = gerar_mensagem_embarcador(m)
-        msg_transp = gerar_mensagem_transportadora(m)
-        
-        m.link_wa_emb = montar_link_whatsapp(m.embarcador.telefone, msg_emb)
-        m.link_wa_transp = montar_link_whatsapp(m.transportadora.telefone, msg_transp)
-        
-        m.assunto_email = gerar_assunto_email(m)
-        m.corpo_email_emb = msg_emb
-        m.corpo_email_transp = msg_transp
+            m.link_wa_emb = montar_link_whatsapp(m.embarcador.telefone, msg_emb)
+            m.link_wa_transp = montar_link_whatsapp(m.transportadora.telefone, msg_transp)
             
-    colunas_nomes = ["Sugerido", "Validar", "Abordar", "Em contato", "Negociando", "Fechado", "Perdido", "Descartado"]
-    quadro = {c: [] for c in colunas_nomes}
-    
-    for m in matches_all:
-        status_c = m.status if m.status in quadro else "Sugerido"
-        quadro[status_c].append(m)
+            m.assunto_email = gerar_assunto_email(m)
+            m.corpo_email_emb = msg_emb
+            m.corpo_email_transp = msg_transp
+            
+    matches_exist = any(len(cards) > 0 for cards in quadro.values())
         
     stats = {
         "total": MatchPreditivo.query.count(),
@@ -1478,7 +1487,9 @@ def kanban_quadro():
         corredores=Config.CORREDORES,
         status_labels=status_labels,
         filtros=dict(corredor=corredor, prioridade=prioridade, temperatura=temperatura, status=status_filtro, min_score=min_score, q=busca, vencido=vencido_filtro),
-        hoje=hoje
+        hoje=hoje,
+        matches_exist=matches_exist,
+        total_sugeridos=total_sugeridos
     )
 
 
