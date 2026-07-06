@@ -112,3 +112,37 @@ class EmbarcadorProvavel(db.Model):
         Index("idx_cnpj_corredor_alvo", "cnpj", "corredor_alvo", unique=True),
     )
 
+
+class MatchPreditivo(db.Model):
+    __tablename__ = "matches_preditivos"
+
+    id                = db.Column(db.Integer, primary_key=True)
+    transportadora_id = db.Column(db.Integer, db.ForeignKey("transportadoras.id", ondelete="CASCADE"), nullable=False)
+    embarcador_id     = db.Column(db.Integer, db.ForeignKey("embarcadores_provaveis.id", ondelete="CASCADE"), nullable=False)
+    corredor          = db.Column(db.String(20), index=True)
+    cidade_origem     = db.Column(db.String(100))
+    uf_origem         = db.Column(db.String(2))
+    cidade_destino    = db.Column(db.String(100))
+    uf_destino        = db.Column(db.String(2))
+    score_match       = db.Column(db.Float, index=True)
+    prioridade        = db.Column(db.String(20))
+    score_corredor    = db.Column(db.Float)
+    score_localizacao = db.Column(db.Float)
+    score_setor       = db.Column(db.Float)
+    score_carga       = db.Column(db.Float)
+    score_crm         = db.Column(db.Float)
+    justificativa     = db.Column(db.Text)
+    status            = db.Column(db.String(20), default="Sugerido", index=True)
+    notas             = db.Column(db.Text)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at        = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamentos
+    transportadora    = db.relationship("Transportadora", backref=db.backref("matches_rel", cascade="all, delete-orphan"))
+    embarcador        = db.relationship("EmbarcadorProvavel", backref=db.backref("matches_rel", cascade="all, delete-orphan"))
+
+    __table_args__ = (
+        Index("idx_match_transp_emb_corr", "transportadora_id", "embarcador_id", "corredor", unique=True),
+    )
+
+

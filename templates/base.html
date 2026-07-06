@@ -43,6 +43,16 @@
       color: #fbbf24;
     }
 
+    /* Badges Status Match */
+    .badge-sugerido   { background: #4b5563; color: #fff; }
+    .badge-validar    { background: #06b6d4; color: #fff; }
+    .badge-abordar    { background: #d97706; color: #fff; }
+    .badge-em_contato { background: #3b82f6; color: #fff; }
+    .badge-negociando { background: #f59e0b; color: #000; font-weight: 600; }
+    .badge-fechado    { background: #10b981; color: #fff; }
+    .badge-descartado { background: #ef4444; color: #fff; }
+
+
     /* Filtros */
     .filter-bar { background: var(--wins-card); border-radius: 10px; }
 
@@ -70,6 +80,9 @@
       </a>
       <a href="/embarcadores" class="btn btn-sm text-decoration-none {% if request.path == '/embarcadores' %}text-warning fw-bold{% else %}text-light{% endif %}">
         <i class="bi bi-building me-1"></i>Embarcadores
+      </a>
+      <a href="/matches" class="btn btn-sm text-decoration-none {% if request.path == '/matches' %}text-warning fw-bold{% else %}text-light{% endif %}">
+        <i class="bi bi-cpu me-1"></i>Matches Preditivos
       </a>
     {% endif %}
   </div>

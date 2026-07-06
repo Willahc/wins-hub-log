@@ -8,7 +8,7 @@ from flask import (Flask, Response, flash, jsonify, redirect,
 from flask_sqlalchemy import SQLAlchemy
 
 from config import Config
-from models import ImportLog, Transportadora, EmbarcadorProvavel, db
+from models import ImportLog, Transportadora, EmbarcadorProvavel, MatchPreditivo, db
 from jobs import iniciar_importacao
 
 app = Flask(__name__)
@@ -565,6 +565,148 @@ def atualizar_embarcador_crm(embarcador_id):
         "score": emb.score_demanda, 
         "prioridade": emb.prioridade
     })
+
+
+
+# ─── Match Preditivo (Cargas de Retorno) ──────────────────────────────────────
+
+@app.route("/matches")
+@login_required
+def matches_lista():
+    corredor   = request.args.get("corredor", "")
+    prioridade = request.args.get("prioridade", "")
+    status     = request.args.get("status", "")
+    uf_origem  = request.args.get("uf_origem", "")
+    uf_destino = request.args.get("uf_destino", "")
+    min_score  = request.args.get("min_score", "").strip()
+
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+    except ValueError:
+        page = 1
+
+    query = MatchPreditivo.query
+    if corredor:   query = query.filter_by(corredor=corredor)
+    if prioridade: query = query.filter_by(prioridade=prioridade)
+    if status:     query = query.filter_by(status=status)
+    if uf_origem:  query = query.filter_by(uf_origem=uf_origem)
+    if uf_destino: query = query.filter_by(uf_destino=uf_destino)
+    if min_score:
+        try:
+            query = query.filter(MatchPreditivo.score_match >= float(min_score))
+        except ValueError:
+            pass
+
+    # Ordenar por maior score de match decrescente
+    query = query.order_by(MatchPreditivo.score_match.desc())
+
+    PAGE_SIZE_MATCH = 50
+    total_matches = query.count()
+    total_pages = max(1, (total_matches + PAGE_SIZE_MATCH - 1) // PAGE_SIZE_MATCH)
+    page = min(page, total_pages)
+    
+    matches = query.limit(PAGE_SIZE_MATCH).offset((page - 1) * PAGE_SIZE_MATCH).all()
+
+    # Filtros dinâmicos no template
+    ufs_origem = [r[0] for r in db.session.query(MatchPreditivo.uf_origem).distinct().order_by(MatchPreditivo.uf_origem).all() if r[0]]
+    ufs_destino = [r[0] for r in db.session.query(MatchPreditivo.uf_destino).distinct().order_by(MatchPreditivo.uf_destino).all() if r[0]]
+    
+    # Stats resumidos
+    stats = {
+        "total": total_matches,
+        "alta": MatchPreditivo.query.filter_by(prioridade="Alta").count(),
+        "negociando": MatchPreditivo.query.filter_by(status="Negociando").count(),
+        "fechados": MatchPreditivo.query.filter_by(status="Fechado").count()
+    }
+
+    # Opções de status e labels
+    status_list = ["Sugerido", "Validar", "Abordar", "Em contato", "Negociando", "Fechado", "Descartado"]
+    status_labels = {
+        "Sugerido":   ("Sugerido",   "secondary"),
+        "Validar":    ("Validar",    "info"),
+        "Abordar":    ("Abordar",    "warning"),
+        "Em contato": ("Em contato", "primary"),
+        "Negociando": ("Negociando", "success"),
+        "Fechado":    ("Fechado",    "success"),
+        "Descartado": ("Descartado", "danger")
+    }
+
+    return render_template(
+        "matches.html",
+        matches=matches, total_empresas=total_matches,
+        total_matches=total_matches,
+        page=page, total_pages=total_pages, page_size=PAGE_SIZE_MATCH,
+        stats=stats, corredores=Config.CORREDORES,
+        status_labels=status_labels, status_list=status_list,
+        filtros=dict(corredor=corredor, prioridade=prioridade, status=status, uf_origem=uf_origem, uf_destino=uf_destino, min_score=min_score),
+        ufs_origem=ufs_origem, ufs_destino=ufs_destino
+    )
+
+
+@app.route("/matches/gerar", methods=["POST"])
+@login_required
+def gerar_matches():
+    from radar.matching import gerar_matches_preditivos
+    try:
+        criados = gerar_matches_preditivos(db.session)
+        flash(f"Processamento de Match concluído com sucesso. {criados} novos matches sugeridos gerados.", "success")
+    except Exception as ex:
+        flash(f"Erro ao gerar matches: {ex}", "danger")
+        print(f"Erro ao gerar matches preditivos: {ex}")
+    return redirect(url_for("matches_lista"))
+
+
+@app.route("/matches/<int:match_id>/crm", methods=["POST"])
+@login_required
+def atualizar_match_crm(match_id):
+    match = MatchPreditivo.query.get_or_404(match_id)
+    match.status = request.form.get("status", match.status)
+    match.notas  = request.form.get("notas", match.notas)
+    db.session.commit()
+    return jsonify({"ok": True, "status": match.status})
+
+
+@app.route("/matches/exportar")
+@login_required
+def exportar_matches():
+    corredor   = request.args.get("corredor", "")
+    status     = request.args.get("status", "")
+    prioridade = request.args.get("prioridade", "")
+
+    query = MatchPreditivo.query
+    if corredor:   query = query.filter_by(corredor=corredor)
+    if status:     query = query.filter_by(status=status)
+    if prioridade: query = query.filter_by(prioridade=prioridade)
+
+    matches = query.order_by(MatchPreditivo.score_match.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow([
+        "score_match", "prioridade", "corredor", "transportadora",
+        "cidade_transportadora", "uf_transportadora", "embarcador",
+        "cidade_embarcador", "uf_embarcador", "setor", "tipo_carga", "status", "justificativa", "notas"
+    ])
+    
+    for m in matches:
+        writer.writerow([
+            m.score_match, m.prioridade, m.corredor,
+            m.transportadora.razao_social or m.transportadora.nome_rntrc,
+            m.cidade_origem, m.uf_origem,
+            m.embarcador.razao_social or m.embarcador.nome_fantasia,
+            m.cidade_destino, m.uf_destino,
+            m.embarcador.setor_predito or "",
+            m.embarcador.tipo_carga_provavel or "",
+            m.status, m.justificativa or "", m.notas or ""
+        ])
+
+    output.seek(0)
+    nome_arquivo = f"matches_{corredor.replace('→','-') or 'todos'}.csv"
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"},
+    )
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────
