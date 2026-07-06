@@ -17,6 +17,11 @@ def migrate():
         return
 
     schema_esperado = {
+        "transportadoras": [
+            ("corredor_alvo",    "TEXT"),
+            ("origem_provavel",  "TEXT"),
+            ("destino_provavel", "TEXT"),
+        ],
         "matches_preditivos": [
             ("temperatura", "VARCHAR(20) DEFAULT 'Frio'"),
             ("proxima_acao", "VARCHAR(200)"),

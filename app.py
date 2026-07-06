@@ -120,7 +120,7 @@ def index():
     query_transp = Transportadora.query
     query_emb = EmbarcadorProvavel.query
     if corredor:
-        query_transp = query_transp.filter_by(corredor=corredor)
+        query_transp = query_transp.filter_by(corredor_alvo=corredor)
         query_emb = query_emb.filter_by(corredor_alvo=corredor)
         
     total_transportadoras = query_transp.count()
@@ -248,14 +248,14 @@ def transportadoras_lista():
 
     tem_filtro = bool(corredor or uf or status or cnae_ok == "1" or busca)
 
-    # Stats em UMA query agregada
+    # Stats em UMA query agregada (usa corredor_alvo — fonte de verdade RNTRC)
     stats = {nome: {"total": 0, "com_frete": 0, "clientes": 0} for nome in Config.CORREDORES}
     agregados = db.session.query(
-        Transportadora.corredor,
+        Transportadora.corredor_alvo,
         db.func.count().label("total"),
         db.func.sum(db.case((Transportadora.tem_cnae_frete.is_(True), 1), else_=0)).label("com_frete"),
         db.func.sum(db.case((Transportadora.status_crm == "cliente", 1), else_=0)).label("clientes"),
-    ).group_by(Transportadora.corredor).all()
+    ).group_by(Transportadora.corredor_alvo).all()
     for cor, total, com_frete, clientes in agregados:
         if cor in stats:
             stats[cor] = {"total": int(total or 0),
@@ -278,7 +278,7 @@ def transportadoras_lista():
         )
 
     query = Transportadora.query
-    if corredor: query = query.filter_by(corredor=corredor)
+    if corredor: query = query.filter_by(corredor_alvo=corredor)
     if uf:       query = query.filter_by(uf=uf)
     if status:   query = query.filter_by(status_crm=status)
     if cnae_ok == "1":
@@ -390,11 +390,11 @@ def exportar():
 
     query = Transportadora.query
     if corredor:
-        query = query.filter_by(corredor=corredor)
+        query = query.filter_by(corredor_alvo=corredor)
     if status:
         query = query.filter_by(status_crm=status)
 
-    empresas = query.order_by(Transportadora.corredor, Transportadora.razao_social).all()
+    empresas = query.order_by(Transportadora.corredor_alvo, Transportadora.razao_social).all()
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")
@@ -408,7 +408,7 @@ def exportar():
     for e in empresas:
         res = avaliar_transportadora(e)
         writer.writerow([
-            e.corredor, e.cnpj, e.razao_social or e.nome_rntrc,
+            e.corredor_alvo or e.corredor or "", e.cnpj, e.razao_social or e.nome_rntrc,
             e.municipio, e.uf, e.telefone or "", e.email or "",
             e.socios or "", "Sim" if e.tem_cnae_frete else "Não",
             e.porte or "", e.status_crm, e.notas or "",
@@ -444,14 +444,14 @@ def radar():
     except ValueError:
         page = 1
 
-    # Stats para os cards
+    # Stats para os cards (usa corredor_alvo — fonte de verdade RNTRC)
     stats = {nome: {"total": 0, "com_frete": 0, "clientes": 0} for nome in Config.CORREDORES}
     agregados = db.session.query(
-        Transportadora.corredor,
+        Transportadora.corredor_alvo,
         db.func.count().label("total"),
         db.func.sum(db.case((Transportadora.tem_cnae_frete.is_(True), 1), else_=0)).label("com_frete"),
         db.func.sum(db.case((Transportadora.status_crm == "cliente", 1), else_=0)).label("clientes"),
-    ).group_by(Transportadora.corredor).all()
+    ).group_by(Transportadora.corredor_alvo).all()
     for cor, total, com_frete, clientes in agregados:
         if cor in stats:
             stats[cor] = {"total": int(total or 0),
@@ -462,7 +462,7 @@ def radar():
     ufs = [r[0] for r in db.session.query(Transportadora.uf).distinct().order_by(Transportadora.uf).all() if r[0]]
 
     query = Transportadora.query
-    if corredor: query = query.filter_by(corredor=corredor)
+    if corredor: query = query.filter_by(corredor_alvo=corredor)
     if uf:       query = query.filter_by(uf=uf)
     if status:   query = query.filter_by(status_crm=status)
     if cnae_ok == "1":

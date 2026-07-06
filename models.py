@@ -15,6 +15,9 @@ class Transportadora(db.Model):
     municipio      = db.Column(db.String(100), index=True)
     uf             = db.Column(db.String(2), index=True)
     corredor       = db.Column(db.String(20), index=True)
+    corredor_alvo  = db.Column(db.String(20), index=True)
+    origem_provavel  = db.Column(db.String(100))
+    destino_provavel = db.Column(db.String(100))
     telefone       = db.Column(db.String(50))
     email          = db.Column(db.String(150))
     socios         = db.Column(db.Text)
@@ -46,6 +49,9 @@ class Transportadora(db.Model):
             "municipio":      self.municipio,
             "uf":             self.uf,
             "corredor":       self.corredor,
+            "corredor_alvo": self.corredor_alvo or "",
+            "origem_provavel":  self.origem_provavel or "",
+            "destino_provavel": self.destino_provavel or "",
             "telefone":       self.telefone or "",
             "email":          self.email or "",
             "socios":         self.socios or "",
