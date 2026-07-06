@@ -331,7 +331,7 @@
         </td>
         <td>
           <span class="badge-wins badge-status-{{ e.status_crm or 'nao_contatada' }}" id="badge-{{ e.id }}">
-            {{ status_labels[e.status_crm or 'nao_contatada'][0] }}
+            {{ status_labels.get(e.status_crm or 'nao_contatada', status_labels.get('nao_contatada', ['Não contatada', 'badge-muted']))[0] }}
           </span>
         </td>
         <td>
