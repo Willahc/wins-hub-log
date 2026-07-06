@@ -212,6 +212,52 @@ Para garantir a confiabilidade dos dados e agilizar o dia a dia comercial, o Kan
 - **Registro Silencioso**: Em segundo plano (sem travar a ação do usuário), o clique dispara uma chamada assíncrona para a rota `/kanban/match/<id>/contato-rapido` que insere o log de contato imediato (`status = 'Copiada'`) para registrar a iniciativa comercial na cadência.
 
 
+## Importação segura
+
+O WiNS Hub Log possui um pipeline de importação robusto e seguro projetado para receber cargas de dados reais sem comprometer a estabilidade do sistema ou a integridade do banco de dados.
+
+### 1. Formatos Aceitos
+O sistema aceita o upload de planilhas nos formatos:
+- **CSV (.csv)**: Codificados em UTF-8 (com ou sem BOM) ou Latin-1. O delimitador de colunas é detectado automaticamente (suporta `;` ou `,`).
+- **Excel (.xlsx)**: Planilhas eletrônicas nativas do Excel lidas de maneira eficiente com suporte a tipos numéricos e de data.
+
+### 2. Campos Esperados (Cabeçalhos)
+Os cabeçalhos da planilha podem ser escritos de forma normalizada ou com acentuação. O sistema reconhece sinônimos comuns. Os campos esperados são:
+- `cnpj`: CNPJ da empresa (normalizado apenas para números ao salvar).
+- `razao_social`: Razão social da empresa.
+- `nome_fantasia`: Nome fantasia da empresa.
+- `cidade`: Cidade (campo obrigatório).
+- `uf`: Estado com exatamente 2 letras (ex: `SC`, `SP`).
+- `cnae`: Código do CNAE principal (apenas números).
+- `cnae_descricao`: Descrição da atividade do CNAE.
+- `telefone`: Telefone comercial (limpo de parênteses e traços).
+- `email`: E-mail de contato comercial (validado em formato válido).
+- `site`: URL do site da empresa.
+- `corredor_alvo`: Nome do corredor (ex: `SC→SP`, `SP→DF`). Campo obrigatório.
+- `origem_provavel` / `destino_provavel`: Detalhes de tráfego regional.
+- `fonte`: Nome da fonte dos dados (ex: `CargaReal`, `CSV Manual`).
+- `notas`: Anotações gerais.
+
+### 3. Tratamento de Erros e Linhas Inválidas
+- **Sem interrupção total**: Uma linha mal formatada ou com dados inválidos (ex: e-mail em formato incorreto ou UF com tamanho errado) não quebra a importação inteira. 
+- O validador **Pydantic** analisa cada linha individualmente. As linhas corretas são gravadas transacionalmente, enquanto as linhas ruins são salvas temporariamente em um relatório de erros detalhado exibido ao usuário após o lote.
+
+### 4. Deduplicação Leve com RapidFuzz
+- **CNPJ Duplicado**: Se for enviado um CNPJ que já existe para o **mesmo corredor alvo**, o sistema evita a duplicação física e atualiza os dados do registro existente no banco de dados.
+- **Fuzzy Matching**: Usando a biblioteca **RapidFuzz**, o sistema compara as razões sociais e nomes fantasia das empresas enviadas com as já cadastradas.
+  - Se houver similaridade >= 97% na mesma localidade (Cidade/UF), é considerada uma *duplicidade muito provável*.
+  - Se houver similaridade >= 92%, é considerada uma *possível duplicidade*.
+  - **Ação:** O sistema avisa o usuário no painel de resumo e registra as linhas suspeitas, mas **não as deleta automaticamente**, preservando os dados para triagem e tomada de decisão manual da equipe comercial.
+
+### 5. Como Fazer Backup Preventivo
+Sempre faça um backup quente antes de importar grandes lotes de dados reais:
+```bash
+python scripts/backup_db.py
+```
+O script utiliza a conexão nativa `sqlite3.Connection.backup` para realizar uma cópia consistente do banco local em disco sem interromper as operações do dashboard comercial.
+
+---
+
 ## Importação real de embarcadores
 
 Siga o fluxo operacional para testar e validar o sistema com dados reais de embarcadores:

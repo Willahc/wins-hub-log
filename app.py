@@ -403,6 +403,7 @@ def embarcadores_lista():
                           "clientes": int(clientes or 0)}
 
     ultimo_log = ImportLog.query.order_by(ImportLog.iniciado.desc()).first()
+    import_resumo = session.pop("import_resumo", None)
 
     return render_template(
         "embarcadores.html",
@@ -411,6 +412,7 @@ def embarcadores_lista():
         stats=stats, corredores=Config.CORREDORES,
         status_labels=Config.STATUS_LABELS, status_list=Config.STATUS_CRM,
         ultimo_log=ultimo_log,
+        import_resumo=import_resumo,
         filtros=dict(corredor=corredor, uf=uf, cidade=cidade, prioridade=prioridade, status=status, q=busca, min_score=min_score),
         ufs=ufs
     )
@@ -429,70 +431,137 @@ def importar_embarcadores():
         return redirect(url_for("embarcadores_lista"))
 
     try:
-        stream = io.StringIO(file.stream.read().decode("utf-8-sig"), newline=None)
-    except UnicodeDecodeError:
-        try:
-            file.stream.seek(0)
-            stream = io.StringIO(file.stream.read().decode("latin1"), newline=None)
-        except Exception as e:
-            flash(f"Erro ao decodificar arquivo: {e}", "danger")
-            return redirect(url_for("embarcadores_lista"))
+        from radar.import_utils import (
+            detectar_tipo_arquivo,
+            ler_csv_com_encoding_e_sep,
+            ler_xlsx,
+            gerar_preview_importacao,
+            detectar_duplicidades
+        )
+        
+        tipo = detectar_tipo_arquivo(file.filename)
+        file_content = file.read()
+        
+        if tipo == "xlsx":
+            rows_brutas = ler_xlsx(file_content)
+        else:
+            rows_brutas = ler_csv_com_encoding_e_sep(file_content)
+            
+    except Exception as e:
+        flash(f"Erro ao ler arquivo: {str(e)}", "danger")
+        return redirect(url_for("embarcadores_lista"))
 
-    sample = stream.read(2048)
-    stream.seek(0)
-    delimiter = ";" if ";" in sample else ","
-    
-    reader = csv.DictReader(stream, delimiter=delimiter)
-    
+    if not rows_brutas:
+        flash("O arquivo enviado está vazio ou não possui cabeçalhos reconhecidos.", "warning")
+        return redirect(url_for("embarcadores_lista"))
+
+    # Pré-validação com Pydantic
+    linhas_validas, linhas_invalidas = gerar_preview_importacao(rows_brutas)
+
+    # Obter existentes para detecção de duplicidades
+    existentes_db = EmbarcadorProvavel.query.all()
+    existentes = [{
+        "id": emp.id,
+        "cnpj": emp.cnpj,
+        "razao_social": emp.razao_social,
+        "nome_fantasia": emp.nome_fantasia,
+        "cidade": emp.cidade,
+        "uf": emp.uf,
+        "corredor_alvo": emp.corredor_alvo
+    } for emp in existentes_db]
+
+    duplicidades = detectar_duplicidades(linhas_validas, existentes)
+
+    # Salvar registros válidos
     from radar.embarcadores import avaliar_embarcador
     
     sucessos = 0
-    erros = 0
+    atualizados = 0
+    ignorados = 0
     
-    for row in reader:
-        cnpj = row.get("cnpj", "").strip()
-        corredor_alvo = row.get("corredor_alvo", "").strip()
-        if not cnpj or not corredor_alvo:
-            erros += 1
+    vistos_neste_lote = {}
+    
+    for row in linhas_validas:
+        cnpj = row.get("cnpj")
+        corredor_alvo = row.get("corredor_alvo")
+        
+        chave_unica = (cnpj, corredor_alvo) if cnpj else None
+        
+        if chave_unica and chave_unica in vistos_neste_lote:
+            ignorados += 1
             continue
             
         try:
-            embarcador = EmbarcadorProvavel.query.filter_by(cnpj=cnpj, corredor_alvo=corredor_alvo).first()
+            embarcador = None
+            if cnpj and corredor_alvo:
+                embarcador = EmbarcadorProvavel.query.filter_by(cnpj=cnpj, corredor_alvo=corredor_alvo).first()
+                
+            is_new = False
             if not embarcador:
                 embarcador = EmbarcadorProvavel(cnpj=cnpj, corredor_alvo=corredor_alvo)
                 db.session.add(embarcador)
+                is_new = True
                 
-            embarcador.razao_social = row.get("razao_social", "").strip()
-            embarcador.nome_fantasia = row.get("nome_fantasia", "").strip()
-            embarcador.cidade = row.get("cidade", "").strip()
-            embarcador.uf = row.get("uf", "").strip()
-            embarcador.cnae = row.get("cnae", "").strip()
-            embarcador.cnae_descricao = row.get("cnae_descricao", "").strip()
-            embarcador.telefone = row.get("telefone", "").strip()
-            embarcador.email = row.get("email", "").strip()
-            embarcador.site = row.get("site", "").strip()
-            embarcador.origem_provavel = row.get("origem_provavel", "").strip()
-            embarcador.destino_provavel = row.get("destino_provavel", "").strip()
-            embarcador.fonte = row.get("fonte", "").strip()
+            embarcador.razao_social = row.get("razao_social")
+            embarcador.nome_fantasia = row.get("nome_fantasia")
+            embarcador.cidade = row.get("cidade")
+            embarcador.uf = row.get("uf")
+            embarcador.cnae = row.get("cnae")
+            embarcador.cnae_descricao = row.get("cnae_descricao")
+            embarcador.telefone = row.get("telefone")
+            embarcador.email = row.get("email")
+            embarcador.site = row.get("site")
+            embarcador.origem_provavel = row.get("origem_provavel")
+            embarcador.destino_provavel = row.get("destino_provavel")
+            embarcador.fonte = row.get("fonte")
+            embarcador.notas = row.get("notas")
             
-            # Avaliar Radar
+            # Reavaliar Score Radar
             res = avaliar_embarcador(embarcador)
             embarcador.score_demanda = res["score_total"]
             embarcador.prioridade = res["prioridade"]
             embarcador.setor_predito = res["setor_predito"]
             embarcador.tipo_carga_provavel = res["tipo_carga_provavel"]
             embarcador.carrocerias_provaveis = res["carrocerias_provaveis"]
-            embarcador.notas = row.get("notas", "").strip() or embarcador.notas
-
-            db.session.commit()
-            sucessos += 1
+            
+            if chave_unica:
+                vistos_neste_lote[chave_unica] = True
+                
+            if is_new:
+                sucessos += 1
+            else:
+                atualizados += 1
+                
         except Exception as ex:
             db.session.rollback()
-            erros += 1
-            print(f"Erro ao importar linha {row}: {ex}")
+            linhas_invalidas.append({
+                "linha": "Banco",
+                "dados": row,
+                "erros": [f"Erro ao salvar registro: {str(ex)}"]
+            })
 
-    flash(f"Importação concluída. {sucessos} embarcadores importados/atualizados. {erros} erros.", "success" if erros == 0 else "warning")
+    try:
+        db.session.commit()
+    except Exception as commit_ex:
+        db.session.rollback()
+        flash(f"Erro ao salvar lote de importação: {str(commit_ex)}", "danger")
+        return redirect(url_for("embarcadores_lista"))
+
+    # Salvar resumo detalhado na session
+    session["import_resumo"] = {
+        "total_linhas": len(rows_brutas),
+        "importadas": sucessos,
+        "atualizadas": atualizados,
+        "ignoradas": ignorados,
+        "erros": len(linhas_invalidas),
+        "duplicidades_possiveis": len(duplicidades),
+        "detalhes_erros": linhas_invalidas[:20],  # Limitar para não sobrecarregar cookie de session
+        "detalhes_duplicidades": duplicidades[:20]
+    }
+
+    flash(f"Importação concluída. {sucessos} adicionados, {atualizados} atualizados. Erros: {len(linhas_invalidas)}. Duplicidades: {len(duplicidades)}.", "success" if len(linhas_invalidas) == 0 else "warning")
     return redirect(url_for("embarcadores_lista"))
+
 
 
 @app.route("/embarcadores/exportar")

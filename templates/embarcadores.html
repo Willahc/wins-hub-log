@@ -104,11 +104,14 @@
     {% endif %}
   </div>
   <div class="d-flex gap-2 flex-wrap align-items-center">
-    {# Importar CSV de Embarcadores #}
+    {# Importar Planilha de Embarcadores #}
     <form method="POST" action="/embarcadores/importar" enctype="multipart/form-data" class="d-flex align-items-center gap-1 border border-secondary p-1 rounded bg-dark">
-      <input type="file" name="arquivo" class="form-control form-control-sm border-0 bg-transparent text-white" style="max-width: 200px;" required accept=".csv">
+      <input type="file" name="arquivo" class="form-control form-control-sm border-0 bg-transparent text-white" style="max-width: 180px;" required accept=".csv, .xlsx">
       <button type="submit" class="btn btn-sm btn-outline-warning">
-        <i class="bi bi-upload"></i> Importar CSV
+        <i class="bi bi-upload"></i> Importar Planilha
+      </button>
+      <button type="button" class="btn btn-sm btn-link text-muted p-0 me-1" data-bs-toggle="collapse" data-bs-target="#helpHeaders" title="Cabeçalhos esperados">
+        <i class="bi bi-question-circle"></i>
       </button>
     </form>
     {# Exportar CSV #}
@@ -118,6 +121,147 @@
     </a>
   </div>
 </div>
+
+{# ── Ajuda de cabeçalhos colapsável ───────────────────────────────────────── #}
+<div class="collapse mb-3" id="helpHeaders">
+  <div class="card card-body bg-dark border-secondary text-muted small p-3">
+    <strong class="text-white mb-1"><i class="bi bi-info-circle text-warning me-1"></i> Cabeçalhos esperados na planilha:</strong>
+    <code class="text-warning mb-2" style="font-size:0.85rem; word-break: break-all;">
+      cnpj, razao_social, nome_fantasia, cidade, uf, cnae, cnae_descricao, telefone, email, site, corredor_alvo, origem_provavel, destino_provavel, fonte, notas
+    </code>
+    <div class="text-white-50 small">
+      * Campos obrigatórios: <strong>cidade</strong>, <strong>corredor_alvo</strong> e ou <strong>razao_social</strong> ou <strong>nome_fantasia</strong>.<br>
+      * Formato da UF: exatamente <strong>2 letras</strong> (se fornecida).<br>
+      * Formatos suportados: Excel (<strong>.xlsx</strong>) e texto (<strong>.csv</strong> - delimitadores <code>;</code> ou <code>,</code>).
+    </div>
+  </div>
+</div>
+
+{# ── Resumo da última importação ─────────────────────────────────────────── #}
+{% if import_resumo %}
+<div class="card bg-dark border-secondary mb-3 shadow">
+  <div class="card-header bg-secondary bg-opacity-10 border-secondary text-white d-flex justify-content-between align-items-center py-2">
+    <span class="fw-bold small"><i class="bi bi-check-circle-fill text-success me-1"></i> Resumo do Lote de Importação</span>
+    <span class="badge bg-secondary font-monospace" style="font-size:0.75rem;">Processado</span>
+  </div>
+  <div class="card-body py-3">
+    <div class="row text-center g-2 mb-3">
+      <div class="col-4 col-md-2">
+        <div class="p-2 border border-secondary rounded">
+          <div class="small text-muted" style="font-size:0.75rem;">Total Linhas</div>
+          <div class="fs-5 text-white fw-bold">{{ import_resumo.total_linhas }}</div>
+        </div>
+      </div>
+      <div class="col-4 col-md-2">
+        <div class="p-2 border border-success rounded bg-success bg-opacity-10">
+          <div class="small text-success" style="font-size:0.75rem;">Novas</div>
+          <div class="fs-5 text-success fw-bold">+{{ import_resumo.importadas }}</div>
+        </div>
+      </div>
+      <div class="col-4 col-md-2">
+        <div class="p-2 border border-primary rounded bg-primary bg-opacity-10">
+          <div class="small text-primary" style="font-size:0.75rem;">Atualizadas</div>
+          <div class="fs-5 text-primary fw-bold">{{ import_resumo.atualizadas }}</div>
+        </div>
+      </div>
+      <div class="col-4 col-md-2">
+        <div class="p-2 border border-warning rounded bg-warning bg-opacity-10">
+          <div class="small text-warning" style="font-size:0.75rem;">Ignoradas</div>
+          <div class="fs-5 text-warning fw-bold">{{ import_resumo.ignoradas }}</div>
+        </div>
+      </div>
+      <div class="col-4 col-md-2">
+        <div class="p-2 border border-danger rounded bg-danger bg-opacity-10">
+          <div class="small text-danger" style="font-size:0.75rem;">Erros</div>
+          <div class="fs-5 text-danger fw-bold">{{ import_resumo.erros }}</div>
+        </div>
+      </div>
+      <div class="col-4 col-md-2">
+        <div class="p-2 border border-info rounded bg-info bg-opacity-10">
+          <div class="small text-info" style="font-size:0.75rem;">Duplicidades</div>
+          <div class="fs-5 text-info fw-bold">{{ import_resumo.duplicidades_possiveis }}</div>
+        </div>
+      </div>
+    </div>
+
+    {% if import_resumo.detalhes_erros %}
+    <div class="mb-3">
+      <h6 class="text-danger small fw-bold mb-1">
+        <i class="bi bi-x-circle-fill me-1"></i> Linhas com erro de validação (mostrando até 20):
+      </h6>
+      <div class="table-responsive border border-secondary rounded" style="max-height: 180px; font-size: 0.8rem;">
+        <table class="table table-sm table-dark table-striped mb-0">
+          <thead class="table-secondary bg-opacity-10">
+            <tr>
+              <th style="width: 80px;">Linha</th>
+              <th>Dados Originais</th>
+              <th>Erro Encontrado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for err in import_resumo.detalhes_erros %}
+            <tr>
+              <td><span class="badge bg-danger">Linha {{ err.linha }}</span></td>
+              <td>
+                <span class="text-muted small">
+                  CNPJ: <code>{{ err.dados.cnpj or '-' }}</code> | 
+                  Razão: <code>{{ err.dados.razao_social or err.dados.nome_fantasia or '-' }}</code> | 
+                  Corredor: <code>{{ err.dados.corredor_alvo or '-' }}</code>
+                </span>
+              </td>
+              <td class="text-warning">
+                {% for msg in err.erros %}
+                <div><i class="bi bi-exclamation-triangle me-1"></i> {{ msg }}</div>
+                {% endfor %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if import_resumo.detalhes_duplicidades %}
+    <div>
+      <h6 class="text-info small fw-bold mb-1">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i> Alertas de possíveis duplicidades (mostrando até 20):
+      </h6>
+      <div class="table-responsive border border-secondary rounded" style="max-height: 180px; font-size: 0.8rem;">
+        <table class="table table-sm table-dark table-striped mb-0">
+          <thead class="table-secondary bg-opacity-10">
+            <tr>
+              <th style="width: 80px;">Linha</th>
+              <th>Registro na Planilha</th>
+              <th>Cadastro Conflitante Existente</th>
+              <th>Grau de Suspeita</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dup in import_resumo.detalhes_duplicidades %}
+            <tr>
+              <td><span class="badge bg-info">Linha {{ dup.linha }}</span></td>
+              <td class="fw-bold">{{ dup.importado }}</td>
+              <td class="text-white-50">{{ dup.existente }}</td>
+              <td>
+                <span class="badge {% if dup.tipo == 'CNPJ_DUPLICADO' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                  {{ dup.grau }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-muted small mt-2 mb-0" style="font-size:0.75rem;">
+        <i class="bi bi-info-circle me-1"></i> <strong>Nota:</strong> CNPJs idênticos no mesmo corredor alvo foram automaticamente atualizados. Duplicidades fuzzy não foram descartadas de forma automática e foram criadas como novos registros para validação comercial e humana.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 
 {# ── Tabela ───────────────────────────────────────────────────────────────── #}
 {% if empresas %}

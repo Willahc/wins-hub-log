@@ -1,6 +1,7 @@
 import os
 import shutil
 import glob
+import sqlite3
 from datetime import datetime
 
 def get_db_path():
@@ -48,14 +49,39 @@ def run_backup():
     backup_filename = f"local_{timestamp}.db"
     backup_path = os.path.join(backup_dir, backup_filename)
 
+    success = False
     try:
-        shutil.copy2(db_path, backup_path)
-        print(f"Backup criado com sucesso: {backup_path}")
+        # Usar backup quente transacional nativo do SQLite
+        src_conn = sqlite3.connect(db_path)
+        dest_conn = sqlite3.connect(backup_path)
+        with src_conn, dest_conn:
+            src_conn.backup(dest_conn)
+        src_conn.close()
+        dest_conn.close()
+        print(f"Backup quente criado com sucesso: {backup_path}")
+        success = True
+    except Exception as e:
+        print(f"Erro ao criar backup quente (sqlite3.backup): {e}. Tentando fallback com shutil...")
+        # Fallback para shutil.copy2
+        try:
+            shutil.copy2(db_path, backup_path)
+            print(f"Backup de fallback criado com sucesso: {backup_path}")
+            success = True
+        except Exception as e2:
+            print(f"Erro no backup de fallback: {e2}")
+            # Se criou arquivo corrompido, limpa
+            if os.path.exists(backup_path):
+                try:
+                    os.remove(backup_path)
+                except:
+                    pass
+            success = False
+
+    if success:
         clean_old_backups(backup_dir, limit=20)
         return backup_path
-    except Exception as e:
-        print(f"Erro ao criar backup: {e}")
-        return None
+    return None
 
 if __name__ == "__main__":
     run_backup()
+
