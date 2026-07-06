@@ -72,3 +72,41 @@ Para usar SQLite local (sem PostgreSQL), o `.env.example` já usa `sqlite:///loc
 | Negociando | Em negociação ativa |
 | Cliente | Contrato fechado |
 | Descartada | Não tem interesse ou não é o perfil |
+
+---
+
+## Uso atual recomendado: VPS/local sem Render
+
+Este projeto pode rodar localmente na VPS usando SQLite, sem dependência do Render.
+
+### Rodar manualmente
+
+```bash
+cd /home/william/repos/wins-hub-log
+source .venv/bin/activate
+python app.py
+```
+
+### Rodar com Gunicorn
+
+```bash
+gunicorn app:app --bind 127.0.0.1:5055 --workers 2
+```
+
+### Serviço systemd
+
+```bash
+sudo systemctl status wins-hub-log
+sudo systemctl restart wins-hub-log
+journalctl -u wins-hub-log -n 80 --no-pager
+```
+
+### Banco local
+
+Por padrão:
+```env
+DATABASE_URL=sqlite:///local.db
+```
+
+Não subir `.env`, `local.db`, backups ou exports para o GitHub.
+

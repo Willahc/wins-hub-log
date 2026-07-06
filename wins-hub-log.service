@@ -1,0 +1,14 @@
+[Unit]
+Description=WiNS Hub Log
+After=network.target
+
+[Service]
+User=william
+WorkingDirectory=/home/william/repos/wins-hub-log
+EnvironmentFile=/home/william/repos/wins-hub-log/.env
+ExecStart=/home/william/repos/wins-hub-log/.venv/bin/gunicorn app:app --bind 127.0.0.1:5055 --workers 2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
