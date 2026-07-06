@@ -4,7 +4,7 @@
 
 {% block content %}
 
-{# ── Cards de stats por corredor ─────────────────────────────────────────── #}
+{# ── Cards de stats por corredor ───────────────────────────────────────────────── #}
 <div class="row g-2 mb-3">
   {% for nome, s in stats.items() %}
   <div class="col-6 col-md-4">
@@ -14,13 +14,19 @@
           <div class="text-muted small mb-1">{{ nome }}</div>
           <div class="stat-num">{{ s.total }}</div>
           <div class="text-muted" style="font-size:0.75rem">
-            <i class="bi bi-check-circle text-success me-1"></i>{{ s.com_frete }} com CNAE frete
+            <i class="bi bi-check-circle text-success me-1"></i>{{ s.enriquecidas }} enriquecidas
+            &nbsp;|&nbsp;
+            <i class="bi bi-hourglass-split text-secondary me-1"></i>{{ s.pendentes }} pendentes
             &nbsp;|&nbsp;
             <i class="bi bi-star-fill text-warning me-1"></i>{{ s.clientes }} clientes
           </div>
         </div>
         <span class="badge badge-corredor" style="background:#334155;">
-          {{ corredores[nome].assimetria }} vazio
+          {% if corredores[nome].assimetria and corredores[nome].assimetria != '?' %}
+            {{ corredores[nome].assimetria }} vazio estimado
+          {% else %}
+            sem índice
+          {% endif %}
         </span>
       </div>
     </div>
@@ -115,7 +121,7 @@
           <form method="POST" action="/importar" class="px-3 py-1">
             <input type="hidden" name="corredor" value="{{ nome }}">
             <button type="submit" class="btn btn-sm btn-link text-light p-0">
-              {{ nome }} ({{ corredores[nome].assimetria }} vazio)
+              {% if corredores[nome].assimetria and corredores[nome].assimetria != '?' %}{{ nome }} ({{ corredores[nome].assimetria }} vazio est.){% else %}{{ nome }} (sem índice){% endif %}
             </button>
           </form>
         </li>

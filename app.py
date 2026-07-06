@@ -249,18 +249,29 @@ def transportadoras_lista():
     tem_filtro = bool(corredor or uf or status or cnae_ok == "1" or busca)
 
     # Stats em UMA query agregada (usa corredor_alvo — fonte de verdade RNTRC)
-    stats = {nome: {"total": 0, "com_frete": 0, "clientes": 0} for nome in Config.CORREDORES}
+    # enriquecidas = cnae preenchido e diferente de 'RNTRC' (enriquecidas via BrasilAPI)
+    # pendentes    = total - enriquecidas (brutas RNTRC, cnae nulo ou vazio)
+    stats = {nome: {"total": 0, "enriquecidas": 0, "pendentes": 0, "clientes": 0} for nome in Config.CORREDORES}
     agregados = db.session.query(
         Transportadora.corredor_alvo,
         db.func.count().label("total"),
-        db.func.sum(db.case((Transportadora.tem_cnae_frete.is_(True), 1), else_=0)).label("com_frete"),
+        db.func.sum(db.case(
+            (db.and_(
+                Transportadora.cnae_principal.isnot(None),
+                Transportadora.cnae_principal != "",
+                Transportadora.cnae_principal != "RNTRC",
+            ), 1), else_=0
+        )).label("enriquecidas"),
         db.func.sum(db.case((Transportadora.status_crm == "cliente", 1), else_=0)).label("clientes"),
     ).group_by(Transportadora.corredor_alvo).all()
-    for cor, total, com_frete, clientes in agregados:
+    for cor, total, enriquecidas, clientes in agregados:
         if cor in stats:
-            stats[cor] = {"total": int(total or 0),
-                          "com_frete": int(com_frete or 0),
-                          "clientes":  int(clientes or 0)}
+            enr = int(enriquecidas or 0)
+            tot = int(total or 0)
+            stats[cor] = {"total": tot,
+                          "enriquecidas": enr,
+                          "pendentes":    tot - enr,
+                          "clientes":     int(clientes or 0)}
 
     ultimo_log = ImportLog.query.order_by(ImportLog.iniciado.desc()).first()
     ufs = [r[0] for r in db.session.query(Transportadora.uf).distinct().order_by(Transportadora.uf).all() if r[0]]
@@ -445,18 +456,29 @@ def radar():
         page = 1
 
     # Stats para os cards (usa corredor_alvo — fonte de verdade RNTRC)
-    stats = {nome: {"total": 0, "com_frete": 0, "clientes": 0} for nome in Config.CORREDORES}
+    # enriquecidas = cnae preenchido e diferente de 'RNTRC' (enriquecidas via BrasilAPI)
+    # pendentes    = total - enriquecidas (brutas RNTRC, cnae nulo ou vazio)
+    stats = {nome: {"total": 0, "enriquecidas": 0, "pendentes": 0, "clientes": 0} for nome in Config.CORREDORES}
     agregados = db.session.query(
         Transportadora.corredor_alvo,
         db.func.count().label("total"),
-        db.func.sum(db.case((Transportadora.tem_cnae_frete.is_(True), 1), else_=0)).label("com_frete"),
+        db.func.sum(db.case(
+            (db.and_(
+                Transportadora.cnae_principal.isnot(None),
+                Transportadora.cnae_principal != "",
+                Transportadora.cnae_principal != "RNTRC",
+            ), 1), else_=0
+        )).label("enriquecidas"),
         db.func.sum(db.case((Transportadora.status_crm == "cliente", 1), else_=0)).label("clientes"),
     ).group_by(Transportadora.corredor_alvo).all()
-    for cor, total, com_frete, clientes in agregados:
+    for cor, total, enriquecidas, clientes in agregados:
         if cor in stats:
-            stats[cor] = {"total": int(total or 0),
-                          "com_frete": int(com_frete or 0),
-                          "clientes":  int(clientes or 0)}
+            enr = int(enriquecidas or 0)
+            tot = int(total or 0)
+            stats[cor] = {"total": tot,
+                          "enriquecidas": enr,
+                          "pendentes":    tot - enr,
+                          "clientes":     int(clientes or 0)}
 
     ultimo_log = ImportLog.query.order_by(ImportLog.iniciado.desc()).first()
     ufs = [r[0] for r in db.session.query(Transportadora.uf).distinct().order_by(Transportadora.uf).all() if r[0]]

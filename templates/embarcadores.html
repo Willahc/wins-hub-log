@@ -20,7 +20,11 @@
           </div>
         </div>
         <span class="badge badge-corredor" style="background:#334155;">
-          {{ corredores[nome].assimetria }} vazio
+          {% if corredores[nome].assimetria and corredores[nome].assimetria != '?' %}
+            {{ corredores[nome].assimetria }} vazio estimado
+          {% else %}
+            sem índice
+          {% endif %}
         </span>
       </div>
     </div>
