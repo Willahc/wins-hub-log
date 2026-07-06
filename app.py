@@ -1247,6 +1247,60 @@ def metricas_comerciais():
         ~MatchPreditivo.status.in_(["Fechado", "Descartado"])
     ).order_by(MatchPreditivo.data_proxima_acao.asc()).limit(30).all()
     
+    # Cobertura de Contatos
+    total_matches = MatchPreditivo.query.count()
+    if total_matches > 0:
+        matches_t_contato = MatchPreditivo.query.join(MatchPreditivo.transportadora).filter(
+            db.or_(
+                db.and_(Transportadora.telefone != None, Transportadora.telefone != ""),
+                db.and_(Transportadora.email != None, Transportadora.email != ""),
+                db.and_(Transportadora.socios != None, Transportadora.socios != "")
+            )
+        ).count()
+        
+        matches_e_contato = MatchPreditivo.query.join(MatchPreditivo.embarcador).filter(
+            db.or_(
+                db.and_(EmbarcadorProvavel.telefone != None, EmbarcadorProvavel.telefone != ""),
+                db.and_(EmbarcadorProvavel.email != None, EmbarcadorProvavel.email != ""),
+                db.and_(EmbarcadorProvavel.site != None, EmbarcadorProvavel.site != "")
+            )
+        ).count()
+        
+        matches_completo = MatchPreditivo.query.join(MatchPreditivo.transportadora).join(MatchPreditivo.embarcador).filter(
+            db.or_(
+                db.and_(Transportadora.telefone != None, Transportadora.telefone != ""),
+                db.and_(Transportadora.email != None, Transportadora.email != ""),
+                db.and_(Transportadora.socios != None, Transportadora.socios != "")
+            ),
+            db.or_(
+                db.and_(EmbarcadorProvavel.telefone != None, EmbarcadorProvavel.telefone != ""),
+                db.and_(EmbarcadorProvavel.email != None, EmbarcadorProvavel.email != ""),
+                db.and_(EmbarcadorProvavel.site != None, EmbarcadorProvavel.site != "")
+            )
+        ).count()
+        
+        matches_sem_contato = total_matches - (matches_t_contato + matches_e_contato - matches_completo)
+        
+        pct_t = round((matches_t_contato / total_matches) * 100, 1)
+        pct_e = round((matches_e_contato / total_matches) * 100, 1)
+        pct_c = round((matches_completo / total_matches) * 100, 1)
+        pct_s = round((matches_sem_contato / total_matches) * 100, 1)
+    else:
+        matches_t_contato = matches_e_contato = matches_completo = matches_sem_contato = 0
+        pct_t = pct_e = pct_c = pct_s = 0.0
+        
+    cobertura_contatos = {
+        "total": total_matches,
+        "t_contato": matches_t_contato,
+        "e_contato": matches_e_contato,
+        "completo": matches_completo,
+        "sem_contato": matches_sem_contato,
+        "pct_t": pct_t,
+        "pct_e": pct_e,
+        "pct_c": pct_c,
+        "pct_s": pct_s
+    }
+
     return render_template(
         "metricas.html",
         stats=stats_funil,
@@ -1255,7 +1309,8 @@ def metricas_comerciais():
         por_canal=por_canal,
         followups=followups,
         hoje=hoje,
-        corredores=Config.CORREDORES
+        corredores=Config.CORREDORES,
+        cobertura_contatos=cobertura_contatos
     )
 
 

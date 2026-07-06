@@ -175,6 +175,21 @@
             </div>
           </div>
           
+          {# Badge de Cobertura de Contatos (Tarefa /matches) #}
+          {% set t_has = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.email and m.transportadora.email.strip()) or (m.transportadora.socios and m.transportadora.socios.strip()) %}
+          {% set e_has = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.email and m.embarcador.email.strip()) or (m.embarcador.site and m.embarcador.site.strip()) %}
+          <div class="mt-1">
+            {% if t_has and e_has %}
+              <span class="badge bg-success bg-opacity-75 text-white" style="font-size: 0.65rem;"><i class="bi bi-person-check-fill me-1"></i>Contato completo</span>
+            {% elif t_has %}
+              <span class="badge bg-info bg-opacity-75 text-dark" style="font-size: 0.65rem;"><i class="bi bi-truck me-1"></i>Contato transportadora</span>
+            {% elif e_has %}
+              <span class="badge bg-primary bg-opacity-75 text-white" style="font-size: 0.65rem;"><i class="bi bi-building me-1"></i>Contato embarcador</span>
+            {% else %}
+              <span class="badge bg-danger bg-opacity-75 text-white" style="font-size: 0.65rem;"><i class="bi bi-person-x-fill me-1"></i>Sem contato</span>
+            {% endif %}
+          </div>
+          
           {# Cadência Comercial do Match (Tarefa 6) #}
           {% if m.data_proxima_acao %}
             {% set vencido = m.data_proxima_acao < hoje and m.status not in ['Fechado', 'Descartado'] %}

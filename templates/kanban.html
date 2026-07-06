@@ -192,6 +192,35 @@
           <span>{{ m.cidade_destino }}/{{ m.uf_destino }}</span>
         </div>
 
+        {# Exibição de contatos rápidos no card (apenas coluna Sugerido) #}
+        {% if col_nome == 'Sugerido' %}
+          {% set t_has = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.email and m.transportadora.email.strip()) or (m.transportadora.socios and m.transportadora.socios.strip()) %}
+          {% set e_has = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.email and m.embarcador.email.strip()) or (m.embarcador.site and m.embarcador.site.strip()) %}
+          
+          <div class="mb-2 p-1 rounded bg-dark border border-secondary" style="font-size:0.65rem;">
+            {% if not t_has and not e_has %}
+              <div class="text-danger fw-bold"><i class="bi bi-person-x-fill me-1"></i>Sem contato</div>
+            {% else %}
+              <div class="text-white fw-bold mb-1" style="font-size: 0.65rem;"><i class="bi bi-person-lines-fill text-warning me-1"></i>Contatos:</div>
+              {% if t_has %}
+                <div class="text-light text-truncate" title="Transp: {{ m.transportadora.telefone or '' }} {{ m.transportadora.email or '' }}">
+                  <strong>T:</strong> 
+                  {% if m.transportadora.telefone %}{{ m.transportadora.telefone }}{% endif %}
+                  {% if m.transportadora.email %} · {{ m.transportadora.email }}{% endif %}
+                </div>
+              {% endif %}
+              {% if e_has %}
+                <div class="text-light text-truncate" title="Emb: {{ m.embarcador.telefone or '' }} {{ m.embarcador.email or '' }} {{ m.embarcador.site or '' }}">
+                  <strong>E:</strong> 
+                  {% if m.embarcador.telefone %}{{ m.embarcador.telefone }}{% endif %}
+                  {% if m.embarcador.email %} · {{ m.embarcador.email }}{% endif %}
+                  {% if m.embarcador.site %} · {{ m.embarcador.site }}{% endif %}
+                </div>
+              {% endif %}
+            {% endif %}
+          </div>
+        {% endif %}
+
         {# Indicador Visual de Contato (Tarefa 10) #}
         <div class="mb-2">
           {% if m.status == 'Fechado' %}

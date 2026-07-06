@@ -238,4 +238,59 @@
   </div>
 </div>
 
+<div class="row g-3 mb-4">
+  {# Cobertura de Contatos #}
+  <div class="col-12">
+    <div class="card bg-dark border-secondary">
+      <div class="card-header bg-transparent border-secondary text-white fw-bold py-2">
+        <i class="bi bi-person-lines-fill me-1 text-warning"></i>Cobertura de Contatos dos Matches
+      </div>
+      <div class="card-body">
+        <div class="row text-center g-2">
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded">
+              <div class="text-muted small mb-1">Contato Transportadora</div>
+              <h4 class="text-info fw-bold mb-1">{{ cobertura_contatos.t_contato }}</h4>
+              <div class="progress" style="height: 6px; background-color: #334155;">
+                <div class="progress-bar bg-info" role="progressbar" style="width: {{ cobertura_contatos.pct_t }}%" aria-valuenow="{{ cobertura_contatos.pct_t }}" aria-valuemin="0" aria-valuemax="100"></div>
+              </div>
+              <small class="text-muted mt-1 d-block">{{ cobertura_contatos.pct_t }}% dos matches</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded">
+              <div class="text-muted small mb-1">Contato Embarcador</div>
+              <h4 class="text-primary fw-bold mb-1">{{ cobertura_contatos.e_contato }}</h4>
+              <div class="progress" style="height: 6px; background-color: #334155;">
+                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ cobertura_contatos.pct_e }}%" aria-valuenow="{{ cobertura_contatos.pct_e }}" aria-valuemin="0" aria-valuemax="100"></div>
+              </div>
+              <small class="text-muted mt-1 d-block">{{ cobertura_contatos.pct_e }}% dos matches</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded">
+              <div class="text-muted small mb-1">Contato Completo (Ambos)</div>
+              <h4 class="text-success fw-bold mb-1">{{ cobertura_contatos.completo }}</h4>
+              <div class="progress" style="height: 6px; background-color: #334155;">
+                <div class="progress-bar bg-success" role="progressbar" style="width: {{ cobertura_contatos.pct_c }}%" aria-valuenow="{{ cobertura_contatos.pct_c }}" aria-valuemin="0" aria-valuemax="100"></div>
+              </div>
+              <small class="text-muted mt-1 d-block">{{ cobertura_contatos.pct_c }}% dos matches</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded">
+              <div class="text-muted small mb-1">Sem Contato Nenhum</div>
+              <h4 class="text-danger fw-bold mb-1">{{ cobertura_contatos.sem_contato }}</h4>
+              <div class="progress" style="height: 6px; background-color: #334155;">
+                <div class="progress-bar bg-danger" role="progressbar" style="width: {{ cobertura_contatos.pct_s }}%" aria-valuenow="{{ cobertura_contatos.pct_s }}" aria-valuemin="0" aria-valuemax="100"></div>
+              </div>
+              <small class="text-muted mt-1 d-block">{{ cobertura_contatos.pct_s }}% dos matches</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
