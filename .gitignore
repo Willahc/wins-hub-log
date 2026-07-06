@@ -18,3 +18,11 @@ instance/
 *.db-shm
 backups/
 exports/
+
+# Local runtime data
+instance/
+*.db
+*.db-wal
+*.db-shm
+backups/
+exports/
