@@ -5,8 +5,7 @@ enriquecer_brasilapi_matches.py
 Enriquece dados cadastrais das transportadoras e dos embarcadores
 presentes nos matches preditivos de um corredor específico via BrasilAPI.
 
-Uso:
-python scripts/enriquecer_brasilapi_matches.py --corredor "MS->PR" --limit 100 --sleep 1.0 --only-missing
+Lida dinamicamente com diferenças de schema entre tabelas (ex: ausência da coluna cep).
 """
 
 import os
@@ -19,7 +18,7 @@ import unicodedata
 import re
 import requests
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Adiciona a raiz do projeto ao path
@@ -34,7 +33,39 @@ if not DB_PATH.exists():
     DB_PATH = PROJECT_ROOT / "local.db"
 
 
-# ─── Utilitários ──────────────────────────────────────────────────────────────
+# ─── Helpers de Schema e Rows ─────────────────────────────────────────────────
+
+def get_table_columns(conn, table):
+    """Retorna um conjunto contendo os nomes das colunas da tabela em letras minúsculas."""
+    try:
+        cur = conn.cursor()
+        cur.execute(f"PRAGMA table_info({table})")
+        return {row[1].lower() for row in cur.fetchall()}
+    except Exception as e:
+        print(f"Erro ao ler schema da tabela {table}: {e}", file=sys.stderr)
+        return set()
+
+
+def row_get(row, key, default=""):
+    """Obtém com segurança um valor do SQLite Row, suportando busca case-insensitive e chaves ausentes."""
+    try:
+        if not row:
+            return default
+        for k in row.keys():
+            if k.lower() == key.lower():
+                val = row[k]
+                return val if val is not None else default
+    except Exception:
+        pass
+    return default
+
+
+def table_has_col(table_cols, col):
+    """Retorna True se a coluna existir no set de colunas da tabela."""
+    return col.lower() in table_cols
+
+
+# ─── Utilitários Gerais ────────────────────────────────────────────────────────
 
 def limpar_cnpj(cnpj_raw):
     return "".join(x for x in str(cnpj_raw) if x.isdigit()).zfill(14)
@@ -85,7 +116,6 @@ def carregar_cache_local():
                     item = json.loads(line)
                     cnpj = item.get("cnpj")
                     if cnpj:
-                        # Indexa pelo CNPJ limpo para correspondência rápida
                         cache[limpar_cnpj(cnpj)] = item
                 except Exception:
                     pass
@@ -98,7 +128,7 @@ def salvar_no_cache(cnpj, status, dados):
         "cnpj": limpar_cnpj(cnpj),
         "status": status,
         "dados": dados,
-        "consultado_em": datetime.utcnow().isoformat()
+        "consultado_em": datetime.now(timezone.utc).isoformat()
     }
     with open(CACHE_PATH, "a", encoding="utf-8") as f:
         f.write(json.dumps(item) + "\n")
@@ -135,7 +165,7 @@ def main():
     parser = argparse.ArgumentParser(description="Enriquece seletivamente CNPJs dos matches preditivos via BrasilAPI.")
     parser.add_argument("--corredor", required=True, help="Corredor alvo (ex: 'MS->PR')")
     parser.add_argument("--limit", type=int, default=100, help="Limite máximo de consultas à API (default: 100)")
-    parser.add_argument("--sleep", type=type(1.0), default=1.0, help="Sleep entre chamadas da API (default: 1.0)")
+    parser.add_argument("--sleep", type=float, default=1.0, help="Sleep entre chamadas da API (default: 1.0)")
     parser.add_argument("--only-missing", action="store_true", help="Apenas CNPJs com dados faltantes (sem CNAE ou Razão Social ruim)")
     parser.add_argument("--dry-run", action="store_true", help="Modo simulação (não grava alterações no banco nem no cache)")
 
@@ -159,10 +189,13 @@ def main():
     cache = carregar_cache_local()
     print(f"Cache local carregado: {len(cache):,} registros.")
 
-    # 2. Conectar ao banco de dados e carregar CNPJs candidatos dos matches
+    # 2. Conectar ao banco de dados e ler schemas
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+
+    t_cols = get_table_columns(conn, "transportadoras")
+    e_cols = get_table_columns(conn, "embarcadores_provaveis")
 
     # Buscar matches preditivos do corredor
     cur.execute("""
@@ -205,18 +238,22 @@ def main():
     candidatos_e = []
 
     for r in t_rows:
-        cnpj_l = limpar_cnpj(r["cnpj"])
+        cnpj_l = limpar_cnpj(row_get(r, "cnpj"))
         if args.only_missing:
             # Considerado faltando se CNAE principal estiver vazio ou a razão social for ruim (padrão RNTRC)
-            if not r["cnae_principal"] or e_razao_social_ruim(r["razao_social"]):
+            cnae_db = row_get(r, "cnae_principal")
+            razao_db = row_get(r, "razao_social")
+            if not cnae_db or e_razao_social_ruim(razao_db):
                 candidatos_t.append(r)
         else:
             candidatos_t.append(r)
 
     for r in e_rows:
-        cnpj_l = limpar_cnpj(r["cnpj"])
+        cnpj_l = limpar_cnpj(row_get(r, "cnpj"))
         if args.only_missing:
-            if not r["cnae"] or e_razao_social_ruim(r["razao_social"]):
+            cnae_db = row_get(r, "cnae")
+            razao_db = row_get(r, "razao_social")
+            if not cnae_db or e_razao_social_ruim(razao_db):
                 candidatos_e.append(r)
         else:
             candidatos_e.append(r)
@@ -228,10 +265,9 @@ def main():
     # Unificar CNPJs candidatos
     cnpjs_candidatos = {}
     for r in candidatos_t:
-        cnpjs_candidatos[limpar_cnpj(r["cnpj"])] = ("transportadora", r)
+        cnpjs_candidatos[limpar_cnpj(row_get(r, "cnpj"))] = ("transportadora", r)
     for r in candidatos_e:
-        # Se coincidir (raro), o tipo do embarcador sobressai ou processa ambos
-        cnpjs_candidatos[limpar_cnpj(r["cnpj"])] = ("embarcador", r)
+        cnpjs_candidatos[limpar_cnpj(row_get(r, "cnpj"))] = ("embarcador", r)
 
     print(f"Total de CNPJs únicos a processar: {len(cnpjs_candidatos):,}")
     print("-" * 60)
@@ -244,11 +280,10 @@ def main():
     erros = 0
     rate_limited = False
 
-    # Contagem de campos preenchidos
     campos_preenchidos = Counter()
     
-    agora_iso = datetime.utcnow().isoformat()
-    data_consulta = datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+    agora_iso = datetime.now(timezone.utc).isoformat()
+    data_consulta = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
 
     for cnpj_limpo, (tipo, row_db) in cnpjs_candidatos.items():
         if consultados_api >= args.limit:
@@ -326,18 +361,18 @@ def main():
 
             # --- PROCESSAR ATUALIZAÇÃO ---
             if tipo == "transportadora":
-                # Resgatar banco original
-                t_id = row_db["id"]
-                notas_db = row_db["notas"] or ""
-                razao_db = row_db["razao_social"] or ""
-                fantasia_db = row_db["nome_fantasia"] or ""
-                cnae_db = row_db["cnae_principal"] or ""
-                tel_db = row_db["telefone"] or ""
-                email_db = row_db["email"] or ""
-                cidade_db = row_db["municipio"]
-                uf_db = row_db["uf"]
-                cep_db = row_db["cep"]
-                fonte_db = row_db["corredor"] or "RNTRC" # campo corredor no DB e usado como fonte/tag as vezes
+                # Resgatar banco original usando row_get seguro
+                t_id = row_get(row_db, "id")
+                notas_db = row_get(row_db, "notas")
+                razao_db = row_get(row_db, "razao_social")
+                fantasia_db = row_get(row_db, "nome_fantasia")
+                cnae_db = row_get(row_db, "cnae_principal")
+                tel_db = row_get(row_db, "telefone")
+                email_db = row_get(row_db, "email")
+                cidade_db = row_get(row_db, "municipio")
+                uf_db = row_get(row_db, "uf")
+                cep_db = row_get(row_db, "cep")
+                fonte_db = row_get(row_db, "corredor") or "RNTRC"
 
                 # 1. Razão Social
                 razao_final = razao_db
@@ -357,8 +392,8 @@ def main():
                     cnae_final = cnae_api
                     campos_preenchidos["t_cnae"] += 1
 
-                cnaes_secundarios_final = row_db["cnaes_secundarios"] or ""
-                if not row_db["cnaes_secundarios"] and cnaes_secundarios_api:
+                cnaes_secundarios_final = row_get(row_db, "cnaes_secundarios")
+                if not cnaes_secundarios_final and cnaes_secundarios_api:
                     cnaes_secundarios_final = cnaes_secundarios_api
 
                 # Recalcular tem_cnae_frete
@@ -407,41 +442,77 @@ def main():
                         novas_notas = (novas_notas + "\n" + nota_div).strip()
 
                 # Fonte
-                # Adicionar BrasilAPI sem duplicar
                 fontes = [f.strip() for f in (fonte_db or "RNTRC").split(",") if f.strip()]
                 if "BrasilAPI" not in fontes:
                     fontes.append("BrasilAPI")
                 fonte_final = ", ".join(fontes)
 
-                if not args.dry_run:
-                    cur.execute("""
-                        UPDATE transportadoras
-                        SET razao_social = ?, nome_fantasia = ?, cnae_principal = ?, 
-                            cnaes_secundarios = ?, tem_cnae_frete = ?,
-                            telefone = ?, email = ?, municipio = ?, uf = ?, cep = ?, 
-                            corredor = ?, notas = ?, atualizado_em = ?
-                        WHERE id = ?
-                    """, (razao_final, fantasia_final, cnae_final, cnaes_secundarios_final,
-                          tem_cnae_frete_final, tel_final, email_final, cidade_final,
-                          uf_final, cep_final, fonte_final, novas_notas, agora_iso, t_id))
+                # Montar UPDATE dinâmico respeitando as colunas existentes
+                fields = []
+                vals = []
+
+                if table_has_col(t_cols, "razao_social"):
+                    fields.append("razao_social = ?")
+                    vals.append(razao_final)
+                if table_has_col(t_cols, "nome_fantasia"):
+                    fields.append("nome_fantasia = ?")
+                    vals.append(fantasia_final)
+                if table_has_col(t_cols, "cnae_principal"):
+                    fields.append("cnae_principal = ?")
+                    vals.append(cnae_final)
+                if table_has_col(t_cols, "cnaes_secundarios"):
+                    fields.append("cnaes_secundarios = ?")
+                    vals.append(cnaes_secundarios_final)
+                if table_has_col(t_cols, "tem_cnae_frete"):
+                    fields.append("tem_cnae_frete = ?")
+                    vals.append(tem_cnae_frete_final)
+                if table_has_col(t_cols, "telefone"):
+                    fields.append("telefone = ?")
+                    vals.append(tel_final)
+                if table_has_col(t_cols, "email"):
+                    fields.append("email = ?")
+                    vals.append(email_final)
+                if table_has_col(t_cols, "municipio"):
+                    fields.append("municipio = ?")
+                    vals.append(cidade_final)
+                if table_has_col(t_cols, "uf"):
+                    fields.append("uf = ?")
+                    vals.append(uf_final)
+                if table_has_col(t_cols, "cep"):
+                    fields.append("cep = ?")
+                    vals.append(cep_final)
+                if table_has_col(t_cols, "corredor"):
+                    fields.append("corredor = ?")
+                    vals.append(fonte_final)
+                if table_has_col(t_cols, "notas"):
+                    fields.append("notas = ?")
+                    vals.append(novas_notas)
+                if table_has_col(t_cols, "atualizado_em"):
+                    fields.append("atualizado_em = ?")
+                    vals.append(agora_iso)
+
+                if fields and not args.dry_run:
+                    query = f"UPDATE transportadoras SET {', '.join(fields)} WHERE id = ?"
+                    vals.append(t_id)
+                    cur.execute(query, tuple(vals))
                 
                 atualizados_t += 1
 
             elif tipo == "embarcador":
-                # Resgatar banco original
-                e_id = row_db["id"]
-                notas_db = row_db["notas"] or ""
-                razao_db = row_db["razao_social"] or ""
-                fantasia_db = row_db["nome_fantasia"] or ""
-                cnae_db = row_db["cnae"] or ""
-                cnae_desc_db = row_db["cnae_descricao"] or ""
-                tel_db = row_db["telefone"] or ""
-                email_db = row_db["email"] or ""
-                site_db = row_db["site"] or ""
-                cidade_db = row_db["cidade"]
-                uf_db = row_db["uf"]
-                cep_db = row_db["cep"]
-                fonte_db = row_db["fonte"] or "Importação CSV"
+                # Resgatar banco original usando row_get seguro
+                e_id = row_get(row_db, "id")
+                notas_db = row_get(row_db, "notas")
+                razao_db = row_get(row_db, "razao_social")
+                fantasia_db = row_get(row_db, "nome_fantasia")
+                cnae_db = row_get(row_db, "cnae")
+                cnae_desc_db = row_get(row_db, "cnae_descricao")
+                tel_db = row_get(row_db, "telefone")
+                email_db = row_get(row_db, "email")
+                site_db = row_get(row_db, "site")
+                cidade_db = row_get(row_db, "cidade")
+                uf_db = row_get(row_db, "uf")
+                cep_db = row_get(row_db, "cep") # se a coluna não existir, row_get retorna "" com segurança
+                fonte_db = row_get(row_db, "fonte") or "Importação CSV"
 
                 # 1. Razão Social
                 razao_final = razao_db
@@ -475,7 +546,7 @@ def main():
                 if not email_db and email_api:
                     campos_preenchidos["e_email"] += 1
 
-                site_final = site_db if site_db else "" # api não retorna site explicitamente no CNPJ v1 geralmente, mas manter
+                site_final = site_db if site_db else ""
 
                 # 5. Localização
                 cidade_final = cidade_db if cidade_db else cidade_api
@@ -487,7 +558,7 @@ def main():
                     campos_preenchidos["e_uf"] += 1
 
                 cep_final = cep_db if cep_db else cep_api
-                if not cep_db and cep_api:
+                if not cep_db and cep_api and table_has_col(e_cols, "cep"):
                     campos_preenchidos["e_cep"] += 1
 
                 # Divergências
@@ -500,7 +571,7 @@ def main():
                     if normalizar_texto(cidade_api) != normalizar_texto(cidade_db):
                         divergencias.append(f"Cidade API ({cidade_api}) != DB ({cidade_db})")
 
-                novas_notas = os.linesep.join([notas_db, nota_enrich]).strip()
+                novas_notas = notas_db
                 if nota_enrich not in novas_notas:
                     novas_notas = (novas_notas + "\n" + nota_enrich).strip()
                 if divergencias:
@@ -508,22 +579,66 @@ def main():
                     if nota_div not in novas_notas:
                         novas_notas = (novas_notas + "\n" + nota_div).strip()
 
+                # Se a tabela embarcadores_provaveis não possui coluna cep, registramos o CEP nas notas
+                if not table_has_col(e_cols, "cep") and cep_api:
+                    nota_cep = f"CEP BrasilAPI: {cep_api}"
+                    if nota_cep not in novas_notas:
+                        novas_notas = (novas_notas + "\n" + nota_cep).strip()
+
                 # Fonte
                 fontes = [f.strip() for f in (fonte_db or "Importação CSV").split(",") if f.strip()]
                 if "BrasilAPI" not in fontes:
                     fontes.append("BrasilAPI")
                 fonte_final = ", ".join(fontes)
 
-                if not args.dry_run:
-                    cur.execute("""
-                        UPDATE embarcadores_provaveis
-                        SET razao_social = ?, nome_fantasia = ?, cnae = ?, cnae_descricao = ?,
-                            telefone = ?, email = ?, cidade = ?, uf = ?, cep = ?, 
-                            fonte = ?, notas = ?, updated_at = ?
-                        WHERE id = ?
-                    """, (razao_final, fantasia_final, cnae_final, cnae_desc_final,
-                          tel_final, email_final, cidade_final, uf_final, cep_final,
-                          fonte_final, novas_notas, agora_iso, e_id))
+                # Montar UPDATE dinâmico respeitando as colunas existentes
+                fields = []
+                vals = []
+
+                if table_has_col(e_cols, "razao_social"):
+                    fields.append("razao_social = ?")
+                    vals.append(razao_final)
+                if table_has_col(e_cols, "nome_fantasia"):
+                    fields.append("nome_fantasia = ?")
+                    vals.append(fantasia_final)
+                if table_has_col(e_cols, "cnae"):
+                    fields.append("cnae = ?")
+                    vals.append(cnae_final)
+                if table_has_col(e_cols, "cnae_descricao"):
+                    fields.append("cnae_descricao = ?")
+                    vals.append(cnae_desc_final)
+                if table_has_col(e_cols, "telefone"):
+                    fields.append("telefone = ?")
+                    vals.append(tel_final)
+                if table_has_col(e_cols, "email"):
+                    fields.append("email = ?")
+                    vals.append(email_final)
+                if table_has_col(e_cols, "site"):
+                    fields.append("site = ?")
+                    vals.append(site_final)
+                if table_has_col(e_cols, "cidade"):
+                    fields.append("cidade = ?")
+                    vals.append(cidade_final)
+                if table_has_col(e_cols, "uf"):
+                    fields.append("uf = ?")
+                    vals.append(uf_final)
+                if table_has_col(e_cols, "cep"):
+                    fields.append("cep = ?")
+                    vals.append(cep_final)
+                if table_has_col(e_cols, "fonte"):
+                    fields.append("fonte = ?")
+                    vals.append(fonte_final)
+                if table_has_col(e_cols, "notas"):
+                    fields.append("notas = ?")
+                    vals.append(novas_notas)
+                if table_has_col(e_cols, "updated_at"):
+                    fields.append("updated_at = ?")
+                    vals.append(agora_iso)
+
+                if fields and not args.dry_run:
+                    query = f"UPDATE embarcadores_provaveis SET {', '.join(fields)} WHERE id = ?"
+                    vals.append(e_id)
+                    cur.execute(query, tuple(vals))
                 
                 atualizados_e += 1
 
