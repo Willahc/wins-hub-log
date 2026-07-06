@@ -21,7 +21,7 @@ def gerar_justificativa_match(transportadora, embarcador, score):
 
 def calcular_match_transportadora_embarcador(transportadora, embarcador):
     # 1. Compatibilidade de corredor (30%)
-    corr_t = normalizar_corredor(transportadora.corredor)
+    corr_t = normalizar_corredor(transportadora.corredor_alvo or transportadora.corredor)
     corr_e = normalizar_corredor(embarcador.corredor_alvo)
     score_corredor = 100 if (corr_t == corr_e and corr_t != "") else 0
 
@@ -103,35 +103,73 @@ def calcular_match_transportadora_embarcador(transportadora, embarcador):
         "justificativa": justificativa
     }
 
-def gerar_matches_preditivos(db_session):
+def gerar_matches_preditivos(
+    db_session,
+    corredor=None,
+    prioridade_minima=None,
+    limite_matches=None,
+    limite_transportadoras=None,
+    limite_embarcadores=None
+):
     from models import Transportadora, EmbarcadorProvavel, MatchPreditivo
     
-    # 1. Apagar matches com status "Sugerido"
-    db_session.query(MatchPreditivo).filter(MatchPreditivo.status == "Sugerido").delete()
+    if not corredor:
+        raise ValueError("O parâmetro 'corredor' é obrigatório para evitar cruzamentos globais ineficientes.")
+        
+    corredor_alvo_normalizado = normalizar_corredor(corredor)
+    
+    # 1. Apagar matches com status "Sugerido" apenas do corredor especificado
+    db_session.query(MatchPreditivo).filter(
+        MatchPreditivo.status == "Sugerido",
+        MatchPreditivo.corredor == corredor_alvo_normalizado
+    ).delete(synchronize_session=False)
     db_session.commit()
     
-    # 2. Obter todos
-    transportadoras = Transportadora.query.all()
-    embarcadores = EmbarcadorProvavel.query.all()
+    # 2. Obter embarcadores filtrados por corredor e prioridade
+    query_emb = db_session.query(EmbarcadorProvavel).filter(
+        EmbarcadorProvavel.corredor_alvo == corredor_alvo_normalizado
+    )
     
-    # Organizar transportadoras por corredor
-    transp_por_corredor = {}
-    for t in transportadoras:
-        corr = normalizar_corredor(t.corredor)
-        if corr:
-            if corr not in transp_por_corredor:
-                transp_por_corredor[corr] = []
-            transp_por_corredor[corr].append(t)
+    if prioridade_minima:
+        if prioridade_minima == "Alta":
+            query_emb = query_emb.filter(EmbarcadorProvavel.prioridade == "Alta")
+        elif prioridade_minima == "Média":
+            query_emb = query_emb.filter(EmbarcadorProvavel.prioridade.in_(["Alta", "Média"]))
+        elif prioridade_minima == "Baixa":
+            query_emb = query_emb.filter(EmbarcadorProvavel.prioridade.in_(["Alta", "Média", "Baixa"]))
             
-    matches_criados = 0
+    # Ordenar por maior score de demanda primeiro
+    query_emb = query_emb.order_by(EmbarcadorProvavel.score_demanda.desc(), EmbarcadorProvavel.razao_social)
+    
+    if limite_embarcadores:
+        query_emb = query_emb.limit(limite_embarcadores)
+        
+    embarcadores = query_emb.all()
+    
+    # 3. Obter transportadoras do mesmo corredor
+    query_transp = db_session.query(Transportadora).filter(
+        (Transportadora.corredor_alvo == corredor_alvo_normalizado) |
+        (Transportadora.corredor == corredor_alvo_normalizado)
+    )
+    
+    if limite_transportadoras:
+        query_transp = query_transp.limit(limite_transportadoras)
+        
+    transportadoras = query_transp.all()
+    
+    print(f"Buscando matches no corredor {corredor_alvo_normalizado}:")
+    print(f"  Embarcadores carregados: {len(embarcadores)}")
+    print(f"  Transportadoras carregadas: {len(transportadoras)}")
+    
+    matches_gravados = 0
     
     for e in embarcadores:
-        corr_e = normalizar_corredor(e.corredor_alvo)
-        if not corr_e or corr_e not in transp_por_corredor:
-            continue
+        if limite_matches and matches_gravados >= limite_matches:
+            print(f"  Limite de matches atingido ({limite_matches}). Parando.")
+            break
             
         candidatos = []
-        for t in transp_por_corredor[corr_e]:
+        for t in transportadoras:
             res = calcular_match_transportadora_embarcador(t, e)
             if res["score_total"] >= 50:
                 candidatos.append((t, res))
@@ -141,36 +179,55 @@ def gerar_matches_preditivos(db_session):
         candidatos = candidatos[:20]
         
         for t, res in candidatos:
-            # Evitar duplicidade antes de inserir
-            existente = MatchPreditivo.query.filter_by(
+            if limite_matches and matches_gravados >= limite_matches:
+                break
+                
+            # Evitar duplicidade antes de inserir, ou atualizar caso exista
+            existente = db_session.query(MatchPreditivo).filter_by(
                 transportadora_id=t.id,
                 embarcador_id=e.id,
-                corredor=corr_e
+                corredor=corredor_alvo_normalizado
             ).first()
             
             if existente:
-                continue
+                existente.score_match = res["score_total"]
+                existente.prioridade = res["prioridade"]
+                existente.score_corredor = res["score_corredor"]
+                existente.score_localizacao = res["score_localizacao"]
+                existente.score_setor = res["score_setor"]
+                existente.score_carga = res["score_carga"]
+                existente.score_crm = res["score_crm"]
+                existente.justificativa = res["justificativa"]
+                existente.cidade_origem = t.municipio
+                existente.uf_origem = t.uf
+                existente.cidade_destino = e.cidade
+                existente.uf_destino = e.uf
+            else:
+                match = MatchPreditivo(
+                    transportadora_id=t.id,
+                    embarcador_id=e.id,
+                    corredor=corredor_alvo_normalizado,
+                    cidade_origem=t.municipio,
+                    uf_origem=t.uf,
+                    cidade_destino=e.cidade,
+                    uf_destino=e.uf,
+                    score_match=res["score_total"],
+                    prioridade=res["prioridade"],
+                    score_corredor=res["score_corredor"],
+                    score_localizacao=res["score_localizacao"],
+                    score_setor=res["score_setor"],
+                    score_carga=res["score_carga"],
+                    score_crm=res["score_crm"],
+                    justificativa=res["justificativa"],
+                    status="Sugerido"
+                )
+                db_session.add(match)
                 
-            match = MatchPreditivo(
-                transportadora_id=t.id,
-                embarcador_id=e.id,
-                corredor=corr_e,
-                cidade_origem=t.municipio,
-                uf_origem=t.uf,
-                cidade_destino=e.cidade,
-                uf_destino=e.uf,
-                score_match=res["score_total"],
-                prioridade=res["prioridade"],
-                score_corredor=res["score_corredor"],
-                score_localizacao=res["score_localizacao"],
-                score_setor=res["score_setor"],
-                score_carga=res["score_carga"],
-                score_crm=res["score_crm"],
-                justificativa=res["justificativa"],
-                status="Sugerido"
-            )
-            db_session.add(match)
-            matches_criados += 1
+            matches_gravados += 1
             
+            # Commit por lote
+            if matches_gravados % 200 == 0:
+                db_session.commit()
+                
     db_session.commit()
-    return matches_criados
+    return matches_gravados

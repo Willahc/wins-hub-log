@@ -119,6 +119,12 @@
   <div class="d-flex gap-2 flex-wrap align-items-center">
     {# Botão Gerar Matches #}
     <form method="POST" action="/matches/gerar">
+      {% if filtros.corredor %}
+        <input type="hidden" name="corredor" value="{{ filtros.corredor }}">
+      {% endif %}
+      {% if filtros.prioridade %}
+        <input type="hidden" name="prioridade" value="{{ filtros.prioridade }}">
+      {% endif %}
       <button type="submit" class="btn btn-sm btn-warning font-weight-bold text-dark" style="font-weight: 600;">
         <i class="bi bi-cpu me-1"></i> Gerar Matches Preditivos
       </button>

@@ -969,13 +969,36 @@ def matches_lista():
 @login_required
 def gerar_matches():
     from radar.matching import gerar_matches_preditivos
+    
+    corredor = request.form.get("corredor") or request.args.get("corredor")
+    prioridade = request.form.get("prioridade") or request.args.get("prioridade") or request.form.get("prioridade_minima") or request.args.get("prioridade_minima")
+    
+    if not corredor and request.referrer:
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(request.referrer)
+        queries = parse_qs(parsed.query)
+        if "corredor" in queries and queries["corredor"]:
+            corredor = queries["corredor"][0]
+        if "prioridade" in queries and queries["prioridade"]:
+            prioridade = queries["prioridade"][0]
+
+    if not corredor:
+        flash("Por favor, selecione um corredor no filtro antes de gerar os matches preditivos.", "warning")
+        return redirect(url_for("matches_lista"))
+        
     try:
-        criados = gerar_matches_preditivos(db.session)
-        flash(f"Processamento de Match concluído com sucesso. {criados} novos matches sugeridos gerados.", "success")
+        limite = 5000
+        criados = gerar_matches_preditivos(
+            db.session,
+            corredor=corredor,
+            prioridade_minima=prioridade,
+            limite_matches=limite
+        )
+        flash(f"Geração de matches concluída com sucesso para o corredor {corredor}. {criados} matches processados.", "success")
     except Exception as ex:
         flash(f"Erro ao gerar matches: {ex}", "danger")
         print(f"Erro ao gerar matches preditivos: {ex}")
-    return redirect(url_for("matches_lista"))
+    return redirect(url_for("matches_lista", corredor=corredor, prioridade=prioridade))
 
 
 @app.route("/matches/<int:match_id>/crm", methods=["POST"])
