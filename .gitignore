@@ -10,3 +10,11 @@ data_import/
 scripts/tabela_municipios_rf.csv
 instance/cache_brasilapi_cnpj.jsonl
 
+
+# Local runtime data
+instance/
+*.db
+*.db-wal
+*.db-shm
+backups/
+exports/
