@@ -988,12 +988,14 @@ def gerar_matches():
         
     try:
         limite = 5000
-        criados = gerar_matches_preditivos(
+        res = gerar_matches_preditivos(
             db.session,
             corredor=corredor,
             prioridade_minima=prioridade,
-            limite_matches=limite
+            limite_matches=limite,
+            preferir_transportadoras_puras=True
         )
+        criados = res.get("total_matches", 0)
         flash(f"Geração de matches concluída com sucesso para o corredor {corredor}. {criados} matches processados.", "success")
     except Exception as ex:
         flash(f"Erro ao gerar matches: {ex}", "danger")

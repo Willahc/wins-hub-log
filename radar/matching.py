@@ -19,7 +19,7 @@ def gerar_justificativa_match(transportadora, embarcador, score):
         f"(Setor: {eval_e['setor_predito']}, Carga: {eval_e['tipo_carga_provavel']})."
     )
 
-def calcular_match_transportadora_embarcador(transportadora, embarcador):
+def calcular_match_transportadora_embarcador(transportadora, embarcador, preferir_transportadoras_puras=False):
     # 1. Compatibilidade de corredor (30%)
     corr_t = normalizar_corredor(transportadora.corredor_alvo or transportadora.corredor)
     corr_e = normalizar_corredor(embarcador.corredor_alvo)
@@ -89,6 +89,26 @@ def calcular_match_transportadora_embarcador(transportadora, embarcador):
         + demanda_score * 0.10
     )
     score_total = round(score_total, 2)
+
+    if preferir_transportadoras_puras:
+        razao = (transportadora.razao_social or "").upper()
+        fantasia = (transportadora.nome_fantasia or "").upper()
+        nome_rntrc = (transportadora.nome_rntrc or "").upper()
+        
+        termos_bonus = ["TRANSPORT", "TRANSPORTADORA", "TRANSPORTES", "LOGISTICA", "LOG", "CARGAS", "FRETES", "EXPRESSO", "RODOVIARIO"]
+        termos_penalizacao = ["DISTRIBUIDORA DE ALIMENTOS", "COMERCIO", "ALIMENTOS", "BEBIDAS", "MERCADO", "RESTAURANTE", "PADARIA"]
+        
+        has_bonus = any(t_bon in razao or t_bon in fantasia or t_bon in nome_rntrc for t_bon in termos_bonus)
+        has_penalizacao = any(t_pen in razao or t_pen in fantasia or t_pen in nome_rntrc for t_pen in termos_penalizacao)
+        
+        if has_bonus:
+            score_total += 15
+        if has_penalizacao:
+            score_total -= 25
+            
+        score_total = max(0.0, min(100.0, score_total))
+        score_total = round(score_total, 2)
+
     prioridade = classificar_prioridade_match(score_total)
     justificativa = gerar_justificativa_match(transportadora, embarcador, score_total)
 
@@ -109,16 +129,23 @@ def gerar_matches_preditivos(
     prioridade_minima=None,
     limite_matches=None,
     limite_transportadoras=None,
-    limite_embarcadores=None
+    limite_embarcadores=None,
+    max_matches_por_embarcador=10,
+    max_matches_por_transportadora=30,
+    preferir_transportadoras_puras=False,
+    replace=False
 ):
     from models import Transportadora, EmbarcadorProvavel, MatchPreditivo
+    from collections import Counter
+    from sqlalchemy import func
     
     if not corredor:
         raise ValueError("O parâmetro 'corredor' é obrigatório para evitar cruzamentos globais ineficientes.")
         
     corredor_alvo_normalizado = normalizar_corredor(corredor)
     
-    # 1. Apagar matches com status "Sugerido" apenas do corredor especificado
+    # 1. Se replace=True ou por padrão, apagar matches com status "Sugerido" apenas do corredor especificado
+    # (Se o usuário quer gerar matches novos, os sugeridos antigos do corredor são limpos)
     db_session.query(MatchPreditivo).filter(
         MatchPreditivo.status == "Sugerido",
         MatchPreditivo.corredor == corredor_alvo_normalizado
@@ -161,7 +188,24 @@ def gerar_matches_preditivos(
     print(f"  Embarcadores carregados: {len(embarcadores)}")
     print(f"  Transportadoras carregadas: {len(transportadoras)}")
     
+    # Inicializar contador de matches por transportadora usando os matches já existentes no banco que NÃO são "Sugerido"
+    existentes_crm = db_session.query(MatchPreditivo.transportadora_id, func.count(MatchPreditivo.id))\
+        .filter(MatchPreditivo.corredor == corredor_alvo_normalizado)\
+        .filter(MatchPreditivo.status != "Sugerido")\
+        .group_by(MatchPreditivo.transportadora_id).all()
+        
+    matches_por_transportadora = Counter({t_id: count for t_id, count in existentes_crm})
+    
     matches_gravados = 0
+    embarcadores_com_match = set()
+    transportadoras_com_match = set()
+    
+    # Rastrear repetições para o relatório final
+    rep_embarcadores = Counter()
+    rep_transportadoras = Counter()
+    
+    mapa_nomes_emb = {}
+    mapa_nomes_transp = {}
     
     for e in embarcadores:
         if limite_matches and matches_gravados >= limite_matches:
@@ -170,15 +214,30 @@ def gerar_matches_preditivos(
             
         candidatos = []
         for t in transportadoras:
-            res = calcular_match_transportadora_embarcador(t, e)
+            res = calcular_match_transportadora_embarcador(
+                t, e, preferir_transportadoras_puras=preferir_transportadoras_puras
+            )
             if res["score_total"] >= 50:
                 candidatos.append((t, res))
                 
-        # Ordenar e limitar a 20 matches por embarcador
+        # Ordenar candidatos do melhor score para o pior
         candidatos.sort(key=lambda x: x[1]["score_total"], reverse=True)
-        candidatos = candidatos[:20]
         
+        # Selecionar candidatos respeitando max_matches_por_embarcador e max_matches_por_transportadora
+        candidatos_selecionados = []
         for t, res in candidatos:
+            if len(candidatos_selecionados) >= max_matches_por_embarcador:
+                break
+                
+            # Verificar limite por transportadora
+            if matches_por_transportadora[t.id] >= max_matches_por_transportadora:
+                continue
+                
+            candidatos_selecionados.append((t, res))
+            matches_por_transportadora[t.id] += 1
+            
+        # Gravar os matches selecionados
+        for t, res in candidatos_selecionados:
             if limite_matches and matches_gravados >= limite_matches:
                 break
                 
@@ -224,10 +283,36 @@ def gerar_matches_preditivos(
                 db_session.add(match)
                 
             matches_gravados += 1
+            embarcadores_com_match.add(e.id)
+            transportadoras_com_match.add(t.id)
+            
+            # Registrar nomes para o relatorio
+            nome_emb = e.razao_social or e.nome_fantasia or "Embarcador Desconhecido"
+            nome_transp = t.razao_social or t.nome_rntrc or t.nome_fantasia or "Transportadora Desconhecida"
+            mapa_nomes_emb[e.id] = nome_emb
+            mapa_nomes_transp[t.id] = nome_transp
+            
+            rep_embarcadores[e.id] += 1
+            rep_transportadoras[t.id] += 1
             
             # Commit por lote
             if matches_gravados % 200 == 0:
                 db_session.commit()
                 
     db_session.commit()
-    return matches_gravados
+    
+    # Calcular estatisticas para o relatorio
+    total_emb = len(embarcadores_com_match)
+    media_por_emb = round(matches_gravados / total_emb, 2) if total_emb > 0 else 0.0
+    
+    top_10_emb = [(mapa_nomes_emb.get(eid, f"ID {eid}"), count) for eid, count in rep_embarcadores.most_common(10)]
+    top_10_transp = [(mapa_nomes_transp.get(tid, f"ID {tid}"), count) for tid, count in rep_transportadoras.most_common(10)]
+    
+    return {
+        "total_matches": matches_gravados,
+        "embarcadores_unicos": total_emb,
+        "transportadoras_unicas": len(transportadoras_com_match),
+        "media_por_embarcador": media_por_emb,
+        "top_embarcadores": top_10_emb,
+        "top_transportadoras": top_10_transp
+    }
