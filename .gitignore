@@ -8,3 +8,5 @@ __pycache__/
 .venv/
 data_import/
 scripts/tabela_municipios_rf.csv
+instance/cache_brasilapi_cnpj.jsonl
+
