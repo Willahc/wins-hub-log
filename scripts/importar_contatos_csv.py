@@ -26,6 +26,34 @@ def main():
         print(f"Erro: Arquivo CSV '{csv_path}' nao encontrado.")
         sys.exit(1)
         
+    # 1. Pré-validar se o CSV possui pelo menos um contato preenchido no arquivo inteiro
+    has_any_contact_in_file = False
+    try:
+        with open(csv_path, "r", encoding="utf-8-sig") as f:
+            sample = f.read(2048)
+            f.seek(0)
+            delimiter = ";"
+            if sample:
+                if "," in sample and (sample.count(",") > sample.count(";")):
+                    delimiter = ","
+            
+            reader = csv.DictReader(f, delimiter=delimiter)
+            for row in reader:
+                telefone_csv = row.get("telefone", "").strip()
+                email_csv = row.get("email", "").strip()
+                site_csv = row.get("site", "").strip()
+                socios_csv = row.get("socios", "").strip()
+                if telefone_csv or email_csv or site_csv or socios_csv:
+                    has_any_contact_in_file = True
+                    break
+    except Exception as e:
+        print(f"Erro ao ler arquivo CSV para validação: {e}")
+        sys.exit(1)
+        
+    if not has_any_contact_in_file and not dry_run:
+        print("Nenhum contato preenchido encontrado. Importação cancelada antes do backup.")
+        sys.exit(0)
+        
     print("============================================================")
     if dry_run:
         print("SIMULAÇÃO DE IMPORTAÇÃO DE CONTATOS (DRY-RUN)")
@@ -33,7 +61,7 @@ def main():
         print("IMPORTAÇÃO E ENRIQUECIMENTO DE CONTATOS COMERCIAIS")
     print("============================================================")
     
-    # 1. Executar backup se não for dry-run
+    # 2. Executar backup se não for dry-run
     if not dry_run:
         print("  Criando backup do banco de dados...")
         try:
@@ -50,18 +78,17 @@ def main():
         
     # Variáveis de estatísticas
     lines_read = 0
-    t_found = 0
-    e_found = 0
+    lines_with_contact = 0
+    lines_without_contact = 0
+    records_found = 0
+    records_updated = 0
+    
     phones_filled = 0
     emails_filled = 0
     sites_filled = 0
     socios_filled = 0
-    lines_ignored_empty = 0
     lines_ignored_existing = 0
     lines_not_found = 0
-    
-    t_updated = 0
-    e_updated = 0
     
     with app.app_context():
         try:
@@ -98,9 +125,12 @@ def main():
                     fonte_contato = row.get("fonte_contato", "").strip()
                     obs_contato = row.get("observacao_contato", "").strip()
                     
-                    # 1. Ignorar se todos os campos de contato estiverem vazios
-                    if not (telefone_csv or email_csv or site_csv or socios_csv or fonte_contato or obs_contato):
-                        lines_ignored_empty += 1
+                    # 1. Verificar se esta linha possui contatos
+                    has_contact_in_row = bool(telefone_csv or email_csv or site_csv or socios_csv)
+                    if has_contact_in_row:
+                        lines_with_contact += 1
+                    else:
+                        lines_without_contact += 1
                         continue
                         
                     emp_id = None
@@ -118,7 +148,7 @@ def main():
                             t = Transportadora.query.filter_by(cnpj=cnpj).first()
                             
                         if t:
-                            t_found += 1
+                            records_found += 1
                             is_modified = False
                             phones_filled_row = False
                             emails_filled_row = False
@@ -173,10 +203,13 @@ def main():
                             if emails_filled_row: emails_filled += 1
                             if socios_filled_row: socios_filled += 1
                             
-                            if phones_filled_row or emails_filled_row or socios_filled_row or (info_notes and not dry_run):
+                            if phones_filled_row or emails_filled_row or socios_filled_row:
+                                records_updated += 1
                                 if not dry_run:
-                                    t_updated += 1
                                     db.session.add(t)
+                            elif info_notes and not dry_run:
+                                records_updated += 1
+                                db.session.add(t)
                             elif skipped_existing_row:
                                 lines_ignored_existing += 1
                         else:
@@ -190,7 +223,7 @@ def main():
                             e = EmbarcadorProvavel.query.filter_by(cnpj=cnpj).first()
                             
                         if e:
-                            e_found += 1
+                            records_found += 1
                             is_modified = False
                             phones_filled_row = False
                             emails_filled_row = False
@@ -245,10 +278,13 @@ def main():
                             if emails_filled_row: emails_filled += 1
                             if sites_filled_row: sites_filled += 1
                             
-                            if phones_filled_row or emails_filled_row or sites_filled_row or (info_notes and not dry_run):
+                            if phones_filled_row or emails_filled_row or sites_filled_row:
+                                records_updated += 1
                                 if not dry_run:
-                                    e_updated += 1
                                     db.session.add(e)
+                            elif info_notes and not dry_run:
+                                records_updated += 1
+                                db.session.add(e)
                             elif skipped_existing_row:
                                 lines_ignored_existing += 1
                         else:
@@ -269,25 +305,27 @@ def main():
         if dry_run:
             print("RELATÓRIO DE SIMULAÇÃO (DRY-RUN):")
             print(f"  Linhas Lidas:                             {lines_read:,}")
-            print(f"  Transportadoras Encontradas no Banco:    {t_found:,}")
-            print(f"  Embarcadores Encontrados no Banco:       {e_found:,}")
+            print(f"  Linhas com Algum Contato Preenchido:      {lines_with_contact:,}")
+            print(f"  Linhas Sem Contato Preenchido:            {lines_without_contact:,}")
+            print(f"  Registros Encontrados no Banco:           {records_found:,}")
+            print(f"  Registros que Seriam Atualizados:         {records_updated:,}")
             print(f"  Telefones que seriam preenchidos:         {phones_filled:,}")
             print(f"  E-mails que seriam preenchidos:           {emails_filled:,}")
             print(f"  Sites que seriam preenchidos:             {sites_filled:,}")
             print(f"  Sócios que seriam preenchidos:            {socios_filled:,}")
-            print(f"  Linhas ignoradas por campos vazios:       {lines_ignored_empty:,}")
             print(f"  Linhas ignoradas por contato já existente: {lines_ignored_existing:,}")
             print(f"  Linhas com CNPJ/ID não encontrado:        {lines_not_found:,}")
         else:
             print("IMPORTAÇÃO CONCLUÍDA COM SUCESSO!")
             print(f"  Linhas Lidas:                             {lines_read:,}")
-            print(f"  Transportadoras Atualizadas:              {t_updated:,}")
-            print(f"  Embarcadores Atualizados:                 {e_updated:,}")
+            print(f"  Linhas com Algum Contato Preenchido:      {lines_with_contact:,}")
+            print(f"  Linhas Sem Contato Preenchido:            {lines_without_contact:,}")
+            print(f"  Registros Encontrados no Banco:           {records_found:,}")
+            print(f"  Registros Atualizados:                    {records_updated:,}")
             print(f"  Telefones Preenchidos:                    {phones_filled:,}")
             print(f"  E-mails Preenchidos:                      {emails_filled:,}")
             print(f"  Sites Preenchidos:                        {sites_filled:,}")
             print(f"  Sócios Preenchidos:                       {socios_filled:,}")
-            print(f"  Linhas ignoradas por campos vazios:       {lines_ignored_empty:,}")
             print(f"  Linhas ignoradas por contato já existente: {lines_ignored_existing:,}")
             print(f"  Linhas com CNPJ/ID não encontrado:        {lines_not_found:,}")
         print("============================================================")
