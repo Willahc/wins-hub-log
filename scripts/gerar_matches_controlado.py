@@ -117,6 +117,8 @@ def main():
             print("-" * 60)
             print("RELATÓRIO ESTATÍSTICO DE MATCHES:")
             print(f"  Total de Matches Gravados:           {res['total_matches']:,}")
+            print(f"  Matches Apagados (Replace):          {res.get('deleted_count', 0):,}")
+            print(f"  Retentativas por Database Lock:      {res.get('retries_lock', 0)}")
             print(f"  Embarcadores Únicos Atendidos:       {res['embarcadores_unicos']:,}")
             print(f"  Transportadoras Únicas Associadas:   {res['transportadoras_unicas']:,}")
             print(f"  Média de Matches por Embarcador:     {res['media_por_embarcador']}")
