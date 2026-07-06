@@ -59,7 +59,7 @@ Para usar SQLite local (sem PostgreSQL), o `.env.example` já usa `sqlite:///loc
 1. **Importar corredor** → botão no dashboard → aguardar enriquecimento (~5 min por corredor)
 2. **Filtrar** por corredor, UF, status CRM, CNAE de frete
 3. **Clicar no lápis** → atualizar status + notas após cada contato
-4. **Exportar CSV** → para uso offline ou compartilhar com Mari
+4. **Exportar CSV** → para uso offline ou compartilhar com a equipe
 
 ## Status CRM
 
@@ -210,6 +210,32 @@ Para garantir a confiabilidade dos dados e agilizar o dia a dia comercial, o Kan
 - Cada card exibe botões rápidos de **WhatsApp (WA)** e **E-mail (Mail)** para o **Embarcador** e para a **Transportadora** (se houver dados correspondentes cadastrados).
 - Ao clicar em um atalho, o navegador abrirá o WhatsApp Web com a mensagem de abordagem logística formatada (via API do WhatsApp) ou o cliente de e-mail (mailto) preenchendo assunto e corpo automaticamente.
 - **Registro Silencioso**: Em segundo plano (sem travar a ação do usuário), o clique dispara uma chamada assíncrona para a rota `/kanban/match/<id>/contato-rapido` que insere o log de contato imediato (`status = 'Copiada'`) para registrar a iniciativa comercial na cadência.
+
+
+## Importação real de embarcadores
+
+Siga o fluxo operacional para testar e validar o sistema com dados reais de embarcadores:
+
+1. **Acessar `/embarcadores`**: Clique no link **Embarcadores** no menu superior.
+2. **Importar CSV**: Use a ferramenta de importação no final da tela para fazer upload de uma lista de embarcadores no formato esperado. (Você pode utilizar como base o arquivo de modelo fictício [`data_import/modelo_embarcadores.csv`](file:///home/william/repos/wins-hub-log/data_import/modelo_embarcadores.csv)).
+3. **Acessar `/matches`**: Vá em **Matches Preditivos** e clique no botão **Gerar Matches Preditivos** para cruzar a frota de transportadoras de retorno vazio com os embarcadores recém-importados.
+4. **Visualizar em `/kanban`**: Acesse a tela do **Kanban** comercial para gerenciar visualmente o funil de prospecções.
+5. **Realizar Abordagem Comercial**: Utilize as ações rápidas de WhatsApp/E-mail nos cards para disparar os contatos e registrar o log comercial em tempo real.
+6. **Acompanhar `/metricas` e `/followups`**: Monitore as taxas de resposta e a agenda de follow-ups agendados na cadência.
+
+---
+
+## Checklist Operacional de Teste
+
+Para validar a integridade do WiNS Hub Log no ambiente de testes:
+
+- [ ] **Transportadoras Semeadas**: Executar o script `python scripts/seed_transportadoras.py` para popular transportadoras fictícias no corredor `SC→SP` caso o banco local esteja vazio.
+- [ ] **Embarcadores Importados**: Importar o arquivo `data_import/modelo_embarcadores.csv` com sucesso pela interface na tela `/embarcadores`.
+- [ ] **Matches Gerados**: Clicar em **Gerar Matches Preditivos** e verificar a criação dos registros cruzados na listagem de matches.
+- [ ] **Kanban Populado**: Acessar `/kanban` e certificar-se de que os cards de match estão visíveis nas respectivas colunas do pipeline.
+- [ ] **Prospecção Registrada**: Clicar em um atalho de contato rápido ou preencher o formulário manual de log de contato e verificar se o indicador atualizou o card e inseriu o log no histórico.
+- [ ] **Métricas Atualizadas**: Acessar `/metricas` e conferir se as estatísticas gerais do funil e as taxas de resposta/conversão comercial computaram os registros.
+
 
 
 

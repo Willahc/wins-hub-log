@@ -1,0 +1,4 @@
+cnpj;razao_social;nome_fantasia;cidade;uf;cnae;cnae_descricao;telefone;email;site;corredor_alvo;origem_provavel;destino_provavel;fonte;notas
+00.000.000/0001-01;Alimentos S/A;Alimentos Ficticios;Joinville;SC;1031700;Fabricacao de conservas de frutas;47999999999;comercial@alimentosficticios.com.br;https://alimentosficticios.com.br;SC→SP;Joinville/SC;Sao Paulo/SP;CSV Manual;CD Principal de alimentos
+00.000.000/0002-02;Atacado Joinville Ltda;Atacado Joinville;Joinville;SC;4691500;Comercio atacadista de mercadorias em geral;47988888888;contato@atacadojoinville.com.br;https://atacadojoinville.com.br;SC→SP;Joinville/SC;Sao Paulo/SP;CSV Manual;CD de cargas secas gerais
+00.000.000/0003-03;Metalurgia Sul S/A;Metal Sul;Joinville;SC;2539001;Servicos de usinagem tornearia e solda;47977777777;vendas@metalsul.com.br;https://metalsul.com.br;SC→SP;Joinville/SC;Sao Paulo/SP;CSV Manual;Fabricante de autopecas de aco

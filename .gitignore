@@ -6,3 +6,5 @@ exports/
 backups/
 __pycache__/
 .venv/
+data_import/
+
