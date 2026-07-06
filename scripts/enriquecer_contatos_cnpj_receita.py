@@ -144,6 +144,9 @@ def main():
                 for row in reader:
                     lines_read += 1
                     
+                    if lines_read % 100 == 0:
+                        print(f"  Progresso: {lines_read} linhas processadas, {cnpjs_queried} CNPJs consultados...")
+                    
                     tipo_emp = row.get("tipo_empresa", "").strip().lower()
                     emp_id_str = row.get("id", "").strip()
                     cnpj_raw = row.get("cnpj", "").strip()
@@ -206,6 +209,20 @@ def main():
                             if result.get("status") == 200:
                                 data_api = result.get("dados")
                                 fonte = "BrasilAPI"
+                            elif result.get("status") == 429:
+                                print(f"\n[AVISO] Limite de requisições atingido (HTTP 429). Parando enriquecimento e salvando resultados parciais...")
+                                res_row["status_enriquecimento"] = "Erro"
+                                res_row["observacao"] = "Erro API: Status 429 (Too Many Requests)"
+                                output_rows.append(res_row)
+                                # Adiciona o resto das linhas como ignoradas
+                                for rem_row_in_reader in reader:
+                                    rem_row = dict(rem_row_in_reader)
+                                    for c in ["telefone_encontrado", "email_encontrado", "socios_encontrados", "endereco_encontrado", "fonte_enriquecimento", "status_enriquecimento", "observacao"]:
+                                        rem_row[c] = ""
+                                    rem_row["status_enriquecimento"] = "Ignorado"
+                                    rem_row["observacao"] = "Ignorado: Interrompido por HTTP 429"
+                                    output_rows.append(rem_row)
+                                break
                             else:
                                 res_row["status_enriquecimento"] = "Não Encontrado"
                                 res_row["observacao"] = f"Erro API: Status {result.get('status')}"
