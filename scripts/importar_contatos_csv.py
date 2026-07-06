@@ -80,8 +80,8 @@ def main():
     lines_read = 0
     lines_with_contact = 0
     lines_without_contact = 0
-    records_found = 0
-    records_updated = 0
+    t_found = 0
+    e_found = 0
     
     phones_filled = 0
     emails_filled = 0
@@ -148,7 +148,7 @@ def main():
                             t = Transportadora.query.filter_by(cnpj=cnpj).first()
                             
                         if t:
-                            records_found += 1
+                            t_found += 1
                             is_modified = False
                             phones_filled_row = False
                             emails_filled_row = False
@@ -203,14 +203,9 @@ def main():
                             if emails_filled_row: emails_filled += 1
                             if socios_filled_row: socios_filled += 1
                             
-                            if phones_filled_row or emails_filled_row or socios_filled_row:
-                                records_updated += 1
-                                if not dry_run:
-                                    db.session.add(t)
-                            elif info_notes and not dry_run:
-                                records_updated += 1
+                            if (phones_filled_row or emails_filled_row or socios_filled_row or is_modified) and not dry_run:
                                 db.session.add(t)
-                            elif skipped_existing_row:
+                            elif skipped_existing_row and not (phones_filled_row or emails_filled_row or socios_filled_row):
                                 lines_ignored_existing += 1
                         else:
                             lines_not_found += 1
@@ -223,7 +218,7 @@ def main():
                             e = EmbarcadorProvavel.query.filter_by(cnpj=cnpj).first()
                             
                         if e:
-                            records_found += 1
+                            e_found += 1
                             is_modified = False
                             phones_filled_row = False
                             emails_filled_row = False
@@ -278,14 +273,9 @@ def main():
                             if emails_filled_row: emails_filled += 1
                             if sites_filled_row: sites_filled += 1
                             
-                            if phones_filled_row or emails_filled_row or sites_filled_row:
-                                records_updated += 1
-                                if not dry_run:
-                                    db.session.add(e)
-                            elif info_notes and not dry_run:
-                                records_updated += 1
+                            if (phones_filled_row or emails_filled_row or sites_filled_row or is_modified) and not dry_run:
                                 db.session.add(e)
-                            elif skipped_existing_row:
+                            elif skipped_existing_row and not (phones_filled_row or emails_filled_row or sites_filled_row):
                                 lines_ignored_existing += 1
                         else:
                             lines_not_found += 1
@@ -304,30 +294,32 @@ def main():
         # Exibir relatório final
         if dry_run:
             print("RELATÓRIO DE SIMULAÇÃO (DRY-RUN):")
-            print(f"  Linhas Lidas:                             {lines_read:,}")
-            print(f"  Linhas com Algum Contato Preenchido:      {lines_with_contact:,}")
-            print(f"  Linhas Sem Contato Preenchido:            {lines_without_contact:,}")
-            print(f"  Registros Encontrados no Banco:           {records_found:,}")
-            print(f"  Registros que Seriam Atualizados:         {records_updated:,}")
-            print(f"  Telefones que seriam preenchidos:         {phones_filled:,}")
-            print(f"  E-mails que seriam preenchidos:           {emails_filled:,}")
-            print(f"  Sites que seriam preenchidos:             {sites_filled:,}")
-            print(f"  Sócios que seriam preenchidos:            {socios_filled:,}")
-            print(f"  Linhas ignoradas por contato já existente: {lines_ignored_existing:,}")
-            print(f"  Linhas com CNPJ/ID não encontrado:        {lines_not_found:,}")
+            print(f"  linhas lidas:                             {lines_read:,}")
+            print(f"  linhas com algum contato preenchido:      {lines_with_contact:,}")
+            print(f"  linhas sem contato preenchido:            {lines_without_contact:,}")
+            print(f"  transportadoras encontradas:              {t_found:,}")
+            print(f"  embarcadores encontrados:                 {e_found:,}")
+            print(f"  telefones que seriam preenchidos:         {phones_filled:,}")
+            print(f"  emails que seriam preenchidos:           {emails_filled:,}")
+            print(f"  sites que seriam preenchidos:             {sites_filled:,}")
+            print(f"  sócios que seriam preenchidos:            {socios_filled:,}")
+            print(f"  linhas ignoradas por campos vazios:       {lines_without_contact:,}")
+            print(f"  linhas ignoradas por contato já existente: {lines_ignored_existing:,}")
+            print(f"  linhas com CNPJ/ID não encontrado:        {lines_not_found:,}")
         else:
             print("IMPORTAÇÃO CONCLUÍDA COM SUCESSO!")
-            print(f"  Linhas Lidas:                             {lines_read:,}")
-            print(f"  Linhas com Algum Contato Preenchido:      {lines_with_contact:,}")
-            print(f"  Linhas Sem Contato Preenchido:            {lines_without_contact:,}")
-            print(f"  Registros Encontrados no Banco:           {records_found:,}")
-            print(f"  Registros Atualizados:                    {records_updated:,}")
-            print(f"  Telefones Preenchidos:                    {phones_filled:,}")
-            print(f"  E-mails Preenchidos:                      {emails_filled:,}")
-            print(f"  Sites Preenchidos:                        {sites_filled:,}")
-            print(f"  Sócios Preenchidos:                       {socios_filled:,}")
-            print(f"  Linhas ignoradas por contato já existente: {lines_ignored_existing:,}")
-            print(f"  Linhas com CNPJ/ID não encontrado:        {lines_not_found:,}")
+            print(f"  linhas lidas:                             {lines_read:,}")
+            print(f"  linhas com algum contato preenchido:      {lines_with_contact:,}")
+            print(f"  linhas sem contato preenchido:            {lines_without_contact:,}")
+            print(f"  transportadoras encontradas:              {t_found:,}")
+            print(f"  embarcadores encontrados:                 {e_found:,}")
+            print(f"  telefones preenchidos:                    {phones_filled:,}")
+            print(f"  emails preenchidos:                      {emails_filled:,}")
+            print(f"  sites preenchidos:                        {sites_filled:,}")
+            print(f"  sócios preenchidos:                       {socios_filled:,}")
+            print(f"  linhas ignoradas por campos vazios:       {lines_without_contact:,}")
+            print(f"  linhas ignoradas por contato já existente: {lines_ignored_existing:,}")
+            print(f"  linhas com CNPJ/ID não encontrado:        {lines_not_found:,}")
         print("============================================================")
 
 if __name__ == "__main__":
