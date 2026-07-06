@@ -1,5 +1,5 @@
 from models import MatchPreditivo, ProspeccaoLog, db
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 def calcular_taxa_resposta(total_prosp, total_resp):
     if not total_prosp:
@@ -64,14 +64,14 @@ def calcular_metricas_por_corredor():
     resultados = db.session.query(
         MatchPreditivo.corredor,
         func.count(MatchPreditivo.id).label("matches"),
-        func.sum(func.case((MatchPreditivo.status == "Fechado", 1), else_=0)).label("fechados"),
-        func.sum(func.case((MatchPreditivo.status == "Negociando", 1), else_=0)).label("negociacoes"),
+        func.sum(case((MatchPreditivo.status == "Fechado", 1), else_=0)).label("fechados"),
+        func.sum(case((MatchPreditivo.status == "Negociando", 1), else_=0)).label("negociacoes"),
     ).group_by(MatchPreditivo.corredor).all()
     
     prosp_corredor = db.session.query(
         MatchPreditivo.corredor,
         func.count(ProspeccaoLog.id).label("prospeccoes"),
-        func.sum(func.case((ProspeccaoLog.status == "Respondida", 1), else_=0)).label("respostas")
+        func.sum(case((ProspeccaoLog.status == "Respondida", 1), else_=0)).label("respostas")
     ).join(ProspeccaoLog).group_by(MatchPreditivo.corredor).all()
     
     p_map = {p[0]: {"prospeccoes": p[1], "respostas": p[2]} for p in prosp_corredor}
@@ -105,14 +105,14 @@ def calcular_metricas_por_setor():
     resultados = db.session.query(
         EmbarcadorProvavel.setor_predito,
         func.count(MatchPreditivo.id).label("matches"),
-        func.sum(func.case((MatchPreditivo.status == "Fechado", 1), else_=0)).label("fechados"),
-        func.sum(func.case((MatchPreditivo.status == "Negociando", 1), else_=0)).label("negociacoes"),
+        func.sum(case((MatchPreditivo.status == "Fechado", 1), else_=0)).label("fechados"),
+        func.sum(case((MatchPreditivo.status == "Negociando", 1), else_=0)).label("negociacoes"),
     ).join(MatchPreditivo, MatchPreditivo.embarcador_id == EmbarcadorProvavel.id).group_by(EmbarcadorProvavel.setor_predito).all()
     
     prosp_setor = db.session.query(
         EmbarcadorProvavel.setor_predito,
         func.count(ProspeccaoLog.id).label("prospeccoes"),
-        func.sum(func.case((ProspeccaoLog.status == "Respondida", 1), else_=0)).label("respostas")
+        func.sum(case((ProspeccaoLog.status == "Respondida", 1), else_=0)).label("respostas")
     ).join(MatchPreditivo, MatchPreditivo.embarcador_id == EmbarcadorProvavel.id).join(ProspeccaoLog, ProspeccaoLog.match_id == MatchPreditivo.id).group_by(EmbarcadorProvavel.setor_predito).all()
     
     p_map = {p[0]: {"prospeccoes": p[1], "respostas": p[2]} for p in prosp_setor}
@@ -145,7 +145,7 @@ def calcular_metricas_por_canal():
     resultados = db.session.query(
         ProspeccaoLog.canal,
         func.count(ProspeccaoLog.id).label("total"),
-        func.sum(func.case((ProspeccaoLog.status == "Respondida", 1), else_=0)).label("respostas"),
+        func.sum(case((ProspeccaoLog.status == "Respondida", 1), else_=0)).label("respostas"),
     ).group_by(ProspeccaoLog.canal).all()
     
     metricas = []
