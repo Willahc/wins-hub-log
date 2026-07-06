@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Embarcadores — WiNS Hub Log{% endblock %}
+{% block title_header %}Embarcadores{% endblock %}
 
 {% block content %}
 
@@ -322,14 +323,14 @@
         <td>
           <div class="d-flex align-items-center gap-1">
             <span class="radar-score-indicator" id="radar-score-{{ e.id }}">{{ e.score_demanda }}</span>
-            <span class="badge badge-radar-{{ e.prioridade | lower }}" id="radar-prioridade-{{ e.id }}">
+            <span class="badge-wins badge-prio-{{ 'alta' if e.prioridade == 'Alta' else 'media' if e.prioridade == 'Média' else 'baixa' }}" id="radar-prioridade-{{ e.id }}">
               {{ e.prioridade }}
             </span>
           </div>
           <small class="text-muted" style="font-size:0.75rem;">{{ e.tipo_carga_provavel or 'não identificada' }}</small>
         </td>
         <td>
-          <span class="badge badge-{{ e.status_crm or 'nao_contatada' }}" id="badge-{{ e.id }}">
+          <span class="badge-wins badge-status-{{ e.status_crm or 'nao_contatada' }}" id="badge-{{ e.id }}">
             {{ status_labels[e.status_crm or 'nao_contatada'][0] }}
           </span>
         </td>
@@ -356,7 +357,7 @@
             <div class="card-body p-2 small">
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <span class="text-white fw-bold"><i class="bi bi-radar me-1 text-warning"></i>Radar de Carga</span>
-                <span class="badge badge-radar-{{ e.prioridade | lower }}" id="radar-prioridade-panel-{{ e.id }}">{{ e.prioridade }} ({{ e.score_demanda }})</span>
+                <span class="badge-wins badge-prio-{{ 'alta' if e.prioridade == 'Alta' else 'media' if e.prioridade == 'Média' else 'baixa' }}" id="radar-prioridade-panel-{{ e.id }}">{{ e.prioridade }} ({{ e.score_demanda }})</span>
               </div>
               <div class="mb-1"><strong>Setor predito:</strong> {{ e.setor_predito }}</div>
               <div class="mb-1"><strong>CNAE:</strong> {{ e.cnae }} - {{ e.cnae_descricao }}</div>
@@ -479,18 +480,20 @@ async function salvarCRMEmbarcador(e, id) {
     const badge = document.getElementById(`badge-${id}`);
     const labels = {{ status_labels | tojson }};
     badge.textContent = labels[json.status][0];
-    badge.className = `badge badge-${json.status}`;
+    badge.className = `badge-wins badge-status-${json.status}`;
     
     // Atualizar score e prioridade
     document.getElementById(`radar-score-${id}`).textContent = json.score;
+    const prio = json.prioridade.toLowerCase();
+    const prioClass = prio === 'alta' ? 'alta' : (prio === 'média' || prio === 'media' ? 'media' : 'baixa');
     const prioBadge = document.getElementById(`radar-prioridade-${id}`);
     prioBadge.textContent = json.prioridade;
-    prioBadge.className = `badge badge-radar-${json.prioridade.toLowerCase()}`;
+    prioBadge.className = `badge-wins badge-prio-${prioClass}`;
     
     // Atualizar panel do offcanvas
     const prioBadgePanel = document.getElementById(`radar-prioridade-panel-${id}`);
     prioBadgePanel.textContent = `${json.prioridade} (${json.score})`;
-    prioBadgePanel.className = `badge badge-radar-${json.prioridade.toLowerCase()}`;
+    prioBadgePanel.className = `badge-wins badge-prio-${prioClass}`;
     
     // Fechar offcanvas
     const oc = bootstrap.Offcanvas.getInstance(document.getElementById(`painel-${id}`));

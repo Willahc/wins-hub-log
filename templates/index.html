@@ -1,40 +1,92 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — WiNS Hub Log{% endblock %}
+{% block title %}Dashboard Executivo — WiNS Hub Log{% endblock %}
+{% block title_header %}Dashboard Executivo{% endblock %}
 
 {% block content %}
 
-{# ── Cards de stats por corredor ─────────────────────────────────────────── #}
-<div class="row g-2 mb-3">
-  {% for nome, s in stats.items() %}
-  <div class="col-6 col-md-4">
-    <div class="stat-card p-3">
-      <div class="d-flex justify-content-between align-items-start">
-        <div>
-          <div class="text-muted small mb-1">{{ nome }}</div>
-          <div class="stat-num">{{ s.total }}</div>
-          <div class="text-muted" style="font-size:0.75rem">
-            <i class="bi bi-check-circle text-success me-1"></i>{{ s.com_frete }} com CNAE frete
-            &nbsp;|&nbsp;
-            <i class="bi bi-star-fill text-warning me-1"></i>{{ s.clientes }} clientes
-          </div>
-        </div>
-        <span class="badge badge-corredor" style="background:#334155;">
-          {{ corredores[nome].assimetria }} vazio
-        </span>
+{% if base_vazia %}
+{# ── Estado Vazio da Base ─────────────────────────────────────────────────── #}
+<div class="empty-state-card my-5 shadow-sm">
+  <div class="empty-state-icon">
+    <i class="bi bi-database-dash"></i>
+  </div>
+  <h3 class="empty-state-title">Nenhum dado operacional cadastrado ainda</h3>
+  <p class="empty-state-desc">
+    Para inicializar o WiNS Hub Log, siga o checklist operacional abaixo e comece a mapear transportadoras e embarcadores prováveis.
+  </p>
+  <div class="d-flex justify-content-center gap-2 mb-4 flex-wrap">
+    <a href="/embarcadores" class="btn btn-warning" style="font-weight:600; color:#000;">
+      <i class="bi bi-upload me-1"></i> Importar Embarcadores
+    </a>
+    <a href="/transportadoras" class="btn btn-outline-light">
+      <i class="bi bi-truck me-1"></i> Ir para Transportadoras
+    </a>
+    <a href="/matches" class="btn btn-outline-warning">
+      <i class="bi bi-cpu me-1"></i> Gerar Matches
+    </a>
+    <a href="/kanban" class="btn btn-outline-secondary">
+      <i class="bi bi-kanban me-1"></i> Abrir Kanban
+    </a>
+  </div>
+  
+  <div class="card bg-dark border-secondary text-start mx-auto p-3" style="max-width: 600px;">
+    <h6 class="text-white border-bottom border-secondary pb-2 mb-3">
+      <i class="bi bi-list-check text-warning me-1"></i> Checklist de Inicialização Operacional:
+    </h6>
+    <div class="d-flex flex-column gap-2 text-white-50">
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-square text-muted mt-0.5"></i>
+        <span><strong>Importar Transportadoras:</strong> Acesse a tela de <a href="/transportadoras" class="text-warning">Transportadoras</a> e semeei as transportadoras de base ou use o script de semente.</span>
+      </div>
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-square text-muted mt-0.5"></i>
+        <span><strong>Importar Embarcadores Prováveis:</strong> Suba uma planilha XLSX ou CSV em <a href="/embarcadores" class="text-warning">Embarcadores</a>.</span>
+      </div>
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-square text-muted mt-0.5"></i>
+        <span><strong>Gerar Matches Preditivos:</strong> Acesse a tela de <a href="/matches" class="text-warning">Matches</a> e clique para gerar correspondências.</span>
+      </div>
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-square text-muted mt-0.5"></i>
+        <span><strong>Conduzir Prospecção Comercial:</strong> Arraste os cards no <a href="/kanban" class="text-warning">Kanban</a> e registre contatos rápidos de WhatsApp.</span>
       </div>
     </div>
   </div>
-  {% endfor %}
 </div>
 
-{# ── Barra de filtros ─────────────────────────────────────────────────────── #}
-<div class="filter-bar p-3 mb-3">
-  <form method="GET" class="row g-2 align-items-end">
+{% else %}
+
+{# ── Dashboard Ativo ──────────────────────────────────────────────────────── #}
+
+{# ── Barra Superior com Ações Rápidas ── #}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="text-white mb-0">Visão Geral da Operação</h4>
+    <small class="text-muted">Mapeamento de assimetrias e cadência comercial</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/embarcadores" class="btn btn-sm btn-outline-warning">
+      <i class="bi bi-upload"></i> Importar Embarcadores
+    </a>
+    <a href="/matches" class="btn btn-sm btn-warning" style="font-weight:600; color:#000;">
+      <i class="bi bi-cpu"></i> Gerar Matches
+    </a>
+    <a href="/kanban" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-kanban"></i> Abrir Kanban
+    </a>
+  </div>
+</div>
+
+{# ── Filtros Globais ── #}
+<div class="filter-card p-3 mb-3">
+  <form method="GET" action="/" class="row g-2 align-items-end">
     <div class="col-12 col-md-3">
+      <label class="form-label small text-muted mb-1">Busca Textual</label>
       <input type="text" name="q" class="form-control form-control-sm"
-             placeholder="Buscar empresa, CNPJ, sócio..." value="{{ filtros.q }}">
+             placeholder="Buscar empresa, CNPJ..." value="{{ filtros.q }}">
     </div>
     <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Corredor</label>
       <select name="corredor" class="form-select form-select-sm">
         <option value="">Todos corredores</option>
         {% for nome in corredores %}
@@ -42,324 +94,467 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-6 col-md-1">
-      <select name="uf" class="form-select form-select-sm">
-        <option value="">UF</option>
-        {% for u in ufs %}
-          <option value="{{ u }}" {% if filtros.uf == u %}selected{% endif %}>{{ u }}</option>
-        {% endfor %}
-      </select>
-    </div>
     <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Status CRM Match</label>
       <select name="status" class="form-select form-select-sm">
         <option value="">Todos status</option>
-        {% for s in status_list %}
-          <option value="{{ s }}" {% if filtros.status == s %}selected{% endif %}>
-            {{ status_labels[s][0] }}
-          </option>
-        {% endfor %}
+        <option value="Sugerido" {% if filtros.status == 'Sugerido' %}selected{% endif %}>Sugerido</option>
+        <option value="Validar" {% if filtros.status == 'Validar' %}selected{% endif %}>Validar</option>
+        <option value="Abordar" {% if filtros.status == 'Abordar' %}selected{% endif %}>Abordar</option>
+        <option value="Em contato" {% if filtros.status == 'Em contato' %}selected{% endif %}>Em contato</option>
+        <option value="Negociando" {% if filtros.status == 'Negociando' %}selected{% endif %}>Negociando</option>
+        <option value="Fechado" {% if filtros.status == 'Fechado' %}selected{% endif %}>Fechado</option>
+        <option value="Perdido" {% if filtros.status == 'Perdido' %}selected{% endif %}>Perdido</option>
+        <option value="Descartado" {% if filtros.status == 'Descartado' %}selected{% endif %}>Descartado</option>
       </select>
     </div>
-    <div class="col-6 col-md-2">
-      <div class="form-check form-switch ms-1 mt-1">
-        <input class="form-check-input" type="checkbox" name="cnae_frete" value="1" id="cnaeCheck"
-               {% if filtros.cnae_frete == '1' %}checked{% endif %}>
-        <label class="form-check-label small" for="cnaeCheck">Só CNAE frete</label>
-      </div>
+    <div class="col-6 col-md-1">
+      <label class="form-label small text-muted mb-1">Prioridade</label>
+      <select name="prioridade" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        <option value="Alta" {% if filtros.prioridade == 'Alta' %}selected{% endif %}>Alta</option>
+        <option value="Média" {% if filtros.prioridade == 'Média' %}selected{% endif %}>Média</option>
+        <option value="Baixa" {% if filtros.prioridade == 'Baixa' %}selected{% endif %}>Baixa</option>
+      </select>
     </div>
-    <div class="col-12 col-md-2 d-flex gap-1">
+    <div class="col-6 col-md-1">
+      <label class="form-label small text-muted mb-1">Temperatura</label>
+      <select name="temperatura" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        <option value="Quente" {% if filtros.temperatura == 'Quente' %}selected{% endif %}>Quente</option>
+        <option value="Morno" {% if filtros.temperatura == 'Morno' %}selected{% endif %}>Morno</option>
+        <option value="Frio" {% if filtros.temperatura == 'Frio' %}selected{% endif %}>Frio</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-1.5 col-lg-1">
+      <label class="form-label small text-muted mb-1">Período</label>
+      <select name="periodo" class="form-select form-select-sm">
+        <option value="todos" {% if filtros.periodo == 'todos' %}selected{% endif %}>Todos</option>
+        <option value="hoje" {% if filtros.periodo == 'hoje' %}selected{% endif %}>Hoje</option>
+        <option value="7d" {% if filtros.periodo == '7d' %}selected{% endif %}>7 Dias</option>
+        <option value="30d" {% if filtros.periodo == '30d' %}selected{% endif %}>30 Dias</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-1">
+      <label class="form-label small text-muted mb-1">Min Score</label>
+      <input type="number" name="min_score" class="form-control form-control-sm" placeholder="Ex: 50" value="{{ filtros.min_score }}" min="0" max="100">
+    </div>
+    <div class="col-12 col-md-1.5 d-flex gap-1">
       <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
         <i class="bi bi-funnel"></i> Filtrar
       </button>
-      <a href="/" class="btn btn-sm btn-outline-secondary">
+      <a href="/" class="btn btn-sm btn-outline-secondary" title="Limpar Filtros">
         <i class="bi bi-x"></i>
       </a>
     </div>
   </form>
 </div>
 
-{# ── Toolbar: importar / exportar ─────────────────────────────────────────── #}
-<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-  <div class="text-muted small">
-    {% if sem_filtro %}
-      <span class="text-warning">Selecione um filtro acima pra carregar empresas</span>
-    {% else %}
-      <strong class="text-white">{{ total_empresas }}</strong> empresas
-      {% if total_pages > 1 %}
-        &nbsp;·&nbsp;página <strong class="text-white">{{ page }}</strong>/{{ total_pages }}
-        (mostrando {{ (page-1) * page_size + 1 }}–{{ [page * page_size, total_empresas]|min }})
-      {% endif %}
-    {% endif %}
-    {% if ultimo_log %}
-      &nbsp;·&nbsp;
-      <span class="text-muted">Última importação:
-        <span id="ultimo-status">{{ ultimo_log.mensagem }}</span>
-        ({{ ultimo_log.iniciado.strftime('%d/%m %H:%M') }})
-      </span>
-    {% endif %}
-  </div>
-  <div class="d-flex gap-2 flex-wrap">
-    {# Importar corredor #}
-    <div class="dropdown">
-      <button class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown">
-        <i class="bi bi-cloud-download"></i> Importar corredor
-      </button>
-      <ul class="dropdown-menu">
-        {% for nome in corredores %}
-        <li>
-          <form method="POST" action="/importar" class="px-3 py-1">
-            <input type="hidden" name="corredor" value="{{ nome }}">
-            <button type="submit" class="btn btn-sm btn-link text-light p-0">
-              {{ nome }} ({{ corredores[nome].assimetria }} vazio)
-            </button>
-          </form>
-        </li>
-        {% endfor %}
-      </ul>
+{# ── Grid de Cards KPI ── #}
+<div class="row g-2 mb-4">
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-card-header">
+        <h6 class="kpi-card-title">Transportadoras</h6>
+        <div class="kpi-card-icon"><i class="bi bi-truck-flatbed"></i></div>
+      </div>
+      <div class="kpi-card-value">{{ total_transportadoras }}</div>
+      <div class="kpi-card-sub">Cadastradas</div>
     </div>
-    {# Exportar CSV #}
-    <a href="/exportar?corredor={{ filtros.corredor }}&status={{ filtros.status }}"
-       class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-download"></i> Exportar CSV
-    </a>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-card-header">
+        <h6 class="kpi-card-title">Embarcadores</h6>
+        <div class="kpi-card-icon"><i class="bi bi-building"></i></div>
+      </div>
+      <div class="kpi-card-value">{{ total_embarcadores }}</div>
+      <div class="kpi-card-sub">Mapeados</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-card-header">
+        <h6 class="kpi-card-title">Matches</h6>
+        <div class="kpi-card-icon"><i class="bi bi-cpu"></i></div>
+      </div>
+      <div class="kpi-card-value text-warning">{{ total_matches }}</div>
+      <div class="kpi-card-sub">Preditivos Gerados</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-card-header">
+        <h6 class="kpi-card-title">Alta Prioridade</h6>
+        <div class="kpi-card-icon"><i class="bi bi-exclamation-triangle"></i></div>
+      </div>
+      <div class="kpi-card-value text-danger">{{ matches_alta }}</div>
+      <div class="kpi-card-sub">Foco de Abordagem</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-card-header">
+        <h6 class="kpi-card-title">Negociando / Fechado</h6>
+        <div class="kpi-card-icon"><i class="bi bi-briefcase"></i></div>
+      </div>
+      <div class="kpi-card-value text-success">{{ matches_negociando }} / {{ matches_fechados }}</div>
+      <div class="kpi-card-sub">Funil Avançado</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-card-header">
+        <h6 class="kpi-card-title">Agenda Comercial</h6>
+        <div class="kpi-card-icon"><i class="bi bi-calendar-event"></i></div>
+      </div>
+      <div class="kpi-card-value {% if fu_vencidos > 0 %}text-danger{% else %}text-info{% endif %}">{{ fu_hoje }} / {{ fu_vencidos }}</div>
+      <div class="kpi-card-sub">Hoje / Vencidos</div>
+    </div>
   </div>
 </div>
 
-{# Barra de progresso importação #}
-<div id="import-progress" class="mb-2">
-  <div class="d-flex justify-content-between small mb-1">
-    <span id="prog-msg">Importando...</span>
-    <span id="prog-pct">0%</span>
+{# ── Grid de Conversão e BI ── #}
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card text-center justify-content-center p-4">
+      <h6 class="kpi-card-title mb-2 text-center w-100">Taxa de Resposta</h6>
+      <div style="font-size: 3rem; font-weight: 800; color: #60a5fa;">{{ "%.1f"|format(taxa_resposta) }}%</div>
+      <small class="text-muted">Porcentagem de matches contatados</small>
+    </div>
   </div>
-  <div class="progress" style="height:6px">
-    <div id="prog-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
-         style="width:0%"></div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card text-center justify-content-center p-4">
+      <h6 class="kpi-card-title mb-2 text-center w-100">Taxa de Conversão</h6>
+      <div style="font-size: 3rem; font-weight: 800; color: #34d399;">{{ "%.1f"|format(taxa_fechamento) }}%</div>
+      <small class="text-muted">Porcentagem de matches fechados</small>
+    </div>
   </div>
-</div>
-
-{# ── Tabela ───────────────────────────────────────────────────────────────── #}
-{% if empresas %}
-<div class="table-responsive">
-  <table class="table table-sm table-hover align-middle mb-0">
-    <thead style="background: #1e293b; position:sticky; top:0; z-index:1;">
-      <tr>
-        <th>Empresa</th>
-        <th>Corredor</th>
-        <th>Município</th>
-        <th>Telefone</th>
-        <th>Sócios</th>
-        <th>CNAE</th>
-        <th>Radar</th>
-        <th>Status</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for e in empresas %}
-      <tr id="row-{{ e.id }}">
-        <td>
-          <div class="fw-semibold" style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-               title="{{ e.razao_social or e.nome_rntrc }}">
-            {{ e.razao_social or e.nome_rntrc or '—' }}
-          </div>
-          <a href="https://www.cnpj.ws/{{ e.cnpj.replace('.','').replace('/','').replace('-','') }}"
-             target="_blank" class="cnpj-link">{{ e.cnpj }}</a>
-        </td>
-        <td>
-          <span class="badge" style="background:#334155; font-size:0.7rem;">{{ e.corredor }}</span>
-        </td>
-        <td>
-          <span class="text-muted">{{ e.municipio }}/{{ e.uf }}</span>
-        </td>
-        <td>
-          {% if e.telefone %}
-            <a href="tel:{{ e.telefone }}" class="text-light text-decoration-none">
-              <i class="bi bi-telephone me-1 text-success"></i>{{ e.telefone }}
-            </a>
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
-        </td>
-        <td>
-          <span class="text-muted small" style="max-width:160px; display:block; overflow:hidden;
-                text-overflow:ellipsis; white-space:nowrap;" title="{{ e.socios }}">
-            {{ e.socios or '—' }}
-          </span>
-        </td>
-        <td>
-          {% if e.tem_cnae_frete %}
-            <span class="badge bg-success"><i class="bi bi-check"></i> Frete</span>
-          {% else %}
-            <span class="badge" style="background:#334155;">{{ e.cnae_principal or '—' }}</span>
-          {% endif %}
-        </td>
-        <td>
-          <div class="d-flex align-items-center gap-1">
-            <span class="radar-score-indicator">{{ e.radar_score }}</span>
-            <span class="badge badge-radar-{{ e.radar_prioridade | lower }}" title="{{ e.radar_justificativa }}">
-              {{ e.radar_prioridade }}
-            </span>
-          </div>
-          <div class="text-muted" style="font-size:0.75rem; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-               title="Setor: {{ e.radar_setor }} · Carga: {{ e.radar_tipo_carga }} ({{ e.radar_carrocerias }})">
-            {{ e.radar_setor or 'indefinido' }}
-          </div>
-        </td>
-        <td>
-          <span class="badge badge-{{ e.status_crm or 'nao_contatada' }}" id="badge-{{ e.id }}">
-            {{ status_labels[e.status_crm or 'nao_contatada'][0] }}
-          </span>
-        </td>
-        <td>
-          <button class="btn btn-sm btn-outline-secondary py-0 px-2"
-                  data-bs-toggle="offcanvas" data-bs-target="#painel-{{ e.id }}">
-            <i class="bi bi-pencil-square"></i>
-          </button>
-        </td>
-      </tr>
-
-      {# Offcanvas de notas/status por empresa #}
-      <div class="offcanvas offcanvas-end" id="painel-{{ e.id }}" style="width:380px">
-        <div class="offcanvas-header border-bottom" style="border-color:#334155 !important">
-          <div>
-            <h6 class="offcanvas-title mb-0">{{ e.razao_social or e.nome_rntrc }}</h6>
-            <small class="text-muted">{{ e.cnpj }} · {{ e.corredor }}</small>
-          </div>
-          <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-        </div>
-        <div class="offcanvas-body">
-          {# Dados #}
-          <div class="mb-3 small">
-            <div><i class="bi bi-geo-alt text-muted me-1"></i>{{ e.municipio }}/{{ e.uf }}</div>
-            {% if e.logradouro %}<div class="text-muted">{{ e.logradouro }}, {{ e.bairro }}</div>{% endif %}
-            {% if e.telefone %}<div><i class="bi bi-telephone text-success me-1"></i>{{ e.telefone }}</div>{% endif %}
-            {% if e.email %}<div><i class="bi bi-envelope text-muted me-1"></i>{{ e.email }}</div>{% endif %}
-            {% if e.socios %}<div><i class="bi bi-person text-muted me-1"></i>{{ e.socios }}</div>{% endif %}
-            {% if e.porte %}<div><i class="bi bi-building text-muted me-1"></i>{{ e.porte }}</div>{% endif %}
-            {% if e.data_abertura %}<div class="text-muted">Fundação: {{ e.data_abertura }}</div>{% endif %}
-          </div>
-          <div class="mb-3">
-            <a href="https://www.cnpj.ws/{{ e.cnpj.replace('.','').replace('/','').replace('-','') }}"
-               target="_blank" class="btn btn-sm btn-outline-warning w-100">
-              <i class="bi bi-box-arrow-up-right me-1"></i>Ver no CNPJ.ws
-            </a>
-          </div>
-
-          {# CRM #}
-          <form onsubmit="salvarStatus(event, {{ e.id }})">
-            <div class="mb-2">
-              <label class="form-label small text-muted">Status CRM</label>
-              <select name="status_crm" id="sel-{{ e.id }}" class="form-select form-select-sm">
-                {% for s in status_list %}
-                  <option value="{{ s }}" {% if e.status_crm == s %}selected{% endif %}>
-                    {{ status_labels[s][0] }}
-                  </option>
-                {% endfor %}
-              </select>
+  
+  {# Bloco do Funil de Status Comercial #}
+  <div class="col-12 col-lg-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white py-2">
+        <strong class="small"><i class="bi bi-funnel me-1"></i> Funil Comercial (Status dos Matches)</strong>
+      </div>
+      <div class="card-body py-2">
+        <div class="funnel-wrapper">
+          {% set max_count = [1, funil_dados.values()|max]|max %}
+          {% for stage, val in funil_dados.items() %}
+          {% set pct = (val / max_count * 100)|round %}
+          <div class="funnel-stage">
+            <div class="funnel-stage-fill" style="width: {{ pct }}%; background-color: {% if stage == 'Fechado' %}#10b981{% elif stage == 'Perdido' or stage == 'Descartado' %}#ef4444{% else %}#f59e0b{% endif %};"></div>
+            <div class="funnel-stage-content">
+              <span>{{ stage }}</span>
+              <span class="fw-bold">{{ val }}</span>
             </div>
-            <div class="mb-3">
-              <label class="form-label small text-muted">Notas</label>
-              <textarea name="notas" class="form-control form-control-sm" rows="4"
-                        placeholder="Resultado da ligação, nome do contato, próximos passos...">{{ e.notas or '' }}</textarea>
-            </div>
-            <button type="submit" class="btn btn-sm w-100"
-                    style="background: var(--wins-amber); color:#000; font-weight:600;">
-              <i class="bi bi-check-lg me-1"></i>Salvar
-            </button>
-          </form>
+          </div>
+          {% endfor %}
         </div>
       </div>
-      {% endfor %}
-    </tbody>
-  </table>
+    </div>
+  </div>
 </div>
 
-{% else %}
-<div class="text-center py-5 text-muted">
-  <i class="bi bi-{{ 'funnel' if sem_filtro else 'inbox' }}" style="font-size:2rem"></i>
-  <p class="mt-2">
-    {% if sem_filtro %}
-      Use os filtros acima pra começar.<br>
-      Escolha um corredor ou marque "Só CNAE frete" pra ver as empresas.
-    {% else %}
-      Nenhuma empresa encontrada com esses filtros.
-    {% endif %}
-  </p>
+{# ── Gráficos Adicionais com Chart.js ── #}
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white py-2">
+        <strong class="small"><i class="bi bi-radar me-1"></i> Matches por Corredor</strong>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center py-2" style="min-height: 180px;">
+        <canvas id="chartCorredores" style="max-height: 160px;"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white py-2">
+        <strong class="small"><i class="bi bi-thermometer-half me-1"></i> Qualificação por Temperatura</strong>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center py-2" style="min-height: 180px;">
+        <canvas id="chartTemperatura" style="max-height: 160px;"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white py-2">
+        <strong class="small"><i class="bi bi-chat-dots me-1"></i> Prospecções por Canal</strong>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center py-2" style="min-height: 180px;">
+        <canvas id="chartCanais" style="max-height: 160px;"></canvas>
+      </div>
+    </div>
+  </div>
 </div>
-{% endif %}
 
-{# ── Paginação ────────────────────────────────────────────────────────────── #}
-{% if total_pages and total_pages > 1 %}
-{% set qs %}corredor={{ filtros.corredor }}&uf={{ filtros.uf }}&status={{ filtros.status }}&cnae_frete={{ filtros.cnae_frete }}&q={{ filtros.q }}{% endset %}
-<nav class="mt-3 d-flex justify-content-center">
-  <ul class="pagination pagination-sm mb-0">
-    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-      <a class="page-link" href="?{{ qs }}&page={{ page - 1 }}">&laquo;</a>
-    </li>
-    {% set start = [1, page - 2]|max %}
-    {% set end   = [total_pages, page + 2]|min %}
-    {% if start > 1 %}
-      <li class="page-item"><a class="page-link" href="?{{ qs }}&page=1">1</a></li>
-      {% if start > 2 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
-    {% endif %}
-    {% for p in range(start, end + 1) %}
-      <li class="page-item {% if p == page %}active{% endif %}">
-        <a class="page-link" href="?{{ qs }}&page={{ p }}">{{ p }}</a>
-      </li>
-    {% endfor %}
-    {% if end < total_pages %}
-      {% if end < total_pages - 1 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
-      <li class="page-item"><a class="page-link" href="?{{ qs }}&page={{ total_pages }}">{{ total_pages }}</a></li>
-    {% endif %}
-    <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-      <a class="page-link" href="?{{ qs }}&page={{ page + 1 }}">&raquo;</a>
-    </li>
-  </ul>
-</nav>
+{# ── Listas Rápidas e Operacionais ── #}
+<div class="row g-3">
+  
+  {# 1. Top 10 Matches por Score #}
+  <div class="col-12 col-lg-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white d-flex justify-content-between align-items-center py-2">
+        <strong class="small"><i class="bi bi-star-fill text-warning me-1"></i> Melhores Correspondências (Top 10)</strong>
+        <a href="/matches" class="btn btn-sm btn-link text-warning p-0 small text-decoration-none">Ver todos</a>
+      </div>
+      <div class="table-responsive" style="max-height: 350px; font-size:0.85rem;">
+        <table class="table table-dark table-striped table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Score</th>
+              <th>Transportadora</th>
+              <th>Embarcador</th>
+              <th>Corredor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in top_matches %}
+            <tr>
+              <td><span class="radar-score-indicator">{{ m.score_match }}</span></td>
+              <td class="fw-semibold">{{ m.transportadora.razao_social or m.transportadora.nome_rntrc or '—' }}</td>
+              <td>{{ m.embarcador.razao_social or m.embarcador.nome_fantasia or '—' }}</td>
+              <td><span class="badge bg-secondary" style="font-size:0.7rem;">{{ m.corredor }}</span></td>
+            </tr>
+            {% endfor %}
+            {% if not top_matches %}
+            <tr>
+              <td colspan="4" class="text-center text-muted py-3">Nenhum match preditivo gerado ainda.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# 2. Follow-ups urgentes #}
+  <div class="col-12 col-lg-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white d-flex justify-content-between align-items-center py-2">
+        <strong class="small"><i class="bi bi-calendar-check text-danger me-1"></i> Ações Comerciais Programadas (Hoje/Atrasadas)</strong>
+        <a href="/followups" class="btn btn-sm btn-link text-warning p-0 small text-decoration-none">Ver todos</a>
+      </div>
+      <div class="table-responsive" style="max-height: 350px; font-size:0.85rem;">
+        <table class="table table-dark table-striped table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Empresa</th>
+              <th>Próxima Ação</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in lista_followups %}
+            <tr>
+              <td>
+                <span class="badge {% if f.data_proxima_acao < datetime.utcnow().strftime('%Y-%m-%d') %}bg-danger{% else %}bg-warning text-dark{% endif %} font-monospace">
+                  {{ f.data_proxima_acao }}
+                </span>
+              </td>
+              <td class="fw-semibold">{{ f.embarcador.razao_social or f.embarcador.nome_fantasia or '—' }}</td>
+              <td class="text-muted">{{ f.proxima_acao or '—' }}</td>
+              <td>
+                <span class="badge-wins badge-status-{{ f.status or 'sugerido' }}">{{ f.status }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not lista_followups %}
+            <tr>
+              <td colspan="4" class="text-center text-muted py-3">Sem follow-ups pendentes para hoje ou atrasados.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# 3. Últimas Prospecções #}
+  <div class="col-12 col-md-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white d-flex justify-content-between align-items-center py-2">
+        <strong class="small"><i class="bi bi-chat-left-text text-info me-1"></i> Histórico de Prospecção Recente</strong>
+        <a href="/prospeccao" class="btn btn-sm btn-link text-warning p-0 small text-decoration-none">Ver histórico</a>
+      </div>
+      <div class="table-responsive" style="max-height: 350px; font-size:0.85rem;">
+        <table class="table table-dark table-striped table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Canal</th>
+              <th>Mensagem / Log</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in ultimas_prospeccoes %}
+            <tr>
+              <td class="text-muted">{{ p.created_at.strftime('%d/%m %H:%M') }}</td>
+              <td>
+                <span class="badge {% if p.canal == 'WhatsApp' %}bg-success{% elif p.canal == 'Ligação' %}bg-primary{% else %}bg-secondary{% endif %}">
+                  {{ p.canal }}
+                </span>
+              </td>
+              <td class="text-truncate" style="max-width: 250px;" title="{{ p.mensagem }}">
+                {{ p.mensagem }}
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not ultimas_prospeccoes %}
+            <tr>
+              <td colspan="3" class="text-center text-muted py-3">Nenhum log de contato registrado.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# 4. Novos Embarcadores #}
+  <div class="col-12 col-md-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white d-flex justify-content-between align-items-center py-2">
+        <strong class="small"><i class="bi bi-building text-warning me-1"></i> Embarcadores Recém-Importados</strong>
+        <a href="/embarcadores" class="btn btn-sm btn-link text-warning p-0 small text-decoration-none">Ver todos</a>
+      </div>
+      <div class="table-responsive" style="max-height: 350px; font-size:0.85rem;">
+        <table class="table table-dark table-striped table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Empresa</th>
+              <th>Localização</th>
+              <th>Corredor Alvo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in novos_embarcadores %}
+            <tr>
+              <td class="fw-semibold">{{ e.razao_social or e.nome_fantasia or '—' }}</td>
+              <td class="text-muted">{{ e.cidade }}/{{ e.uf }}</td>
+              <td><span class="badge bg-secondary" style="font-size:0.7rem;">{{ e.corredor_alvo }}</span></td>
+            </tr>
+            {% endfor %}
+            {% if not novos_embarcadores %}
+            <tr>
+              <td colspan="3" class="text-center text-muted py-3">Nenhum embarcador importado ainda.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+</div>
+
 {% endif %}
 
 {% endblock %}
 
 {% block scripts %}
+{# Carregar Chart.js #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-// Salvar status/notas via fetch
-async function salvarStatus(e, id) {
-  e.preventDefault();
-  const form   = e.target;
-  const data   = new FormData(form);
-  const resp   = await fetch(`/empresa/${id}`, { method: 'POST', body: data });
-  const json   = await resp.json();
-  if (json.ok) {
-    const badge  = document.getElementById(`badge-${id}`);
-    const labels = {{ status_labels | tojson }};
-    badge.textContent = labels[json.status][0];
-    badge.className   = `badge badge-${json.status}`;
-    // Fechar offcanvas
-    const oc = bootstrap.Offcanvas.getInstance(document.getElementById(`painel-${id}`));
-    if (oc) oc.hide();
-  }
-}
+document.addEventListener("DOMContentLoaded", function () {
+  // Configuração global do Chart.js
+  Chart.defaults.color = '#9ca3af';
+  Chart.defaults.borderColor = '#1f2937';
 
-// Polling do progresso de importação
-{% if ultimo_log and ultimo_log.status == 'rodando' %}
-const logId = {{ ultimo_log.id }};
-const prog  = document.getElementById('import-progress');
-const bar   = document.getElementById('prog-bar');
-const msg   = document.getElementById('prog-msg');
-const pct   = document.getElementById('prog-pct');
-prog.style.display = 'block';
-
-const poll = setInterval(async () => {
-  const r = await fetch(`/status-importacao/${logId}`);
-  const d = await r.json();
-  bar.style.width = d.pct + '%';
-  msg.textContent = d.mensagem;
-  pct.textContent = d.pct + '%';
-  if (d.status !== 'rodando') {
-    clearInterval(poll);
-    if (d.status === 'concluido') setTimeout(() => location.reload(), 1500);
+  // 1. Gráfico de Corredores
+  const ctxCorredores = document.getElementById('chartCorredores');
+  if (ctxCorredores) {
+    const dadosCorredores = {{ matches_por_corredor | tojson }};
+    new Chart(ctxCorredores, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(dadosCorredores),
+        datasets: [{
+          data: Object.values(dadosCorredores),
+          backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#a855f7', '#6b7280'],
+          borderWidth: 1,
+          borderColor: '#111827'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'right',
+            labels: { boxWidth: 12, font: { size: 9 } }
+          }
+        }
+      }
+    });
   }
-}, 2000);
-{% endif %}
+
+  // 2. Gráfico de Temperaturas
+  const ctxTemperatura = document.getElementById('chartTemperatura');
+  if (ctxTemperatura) {
+    const dadosTemp = {{ conversao_temp | tojson }};
+    new Chart(ctxTemperatura, {
+      type: 'pie',
+      data: {
+        labels: Object.keys(dadosTemp),
+        datasets: [{
+          data: Object.values(dadosTemp),
+          backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6'],
+          borderWidth: 1,
+          borderColor: '#111827'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'right',
+            labels: { boxWidth: 12, font: { size: 9 } }
+          }
+        }
+      }
+    });
+  }
+
+  // 3. Gráfico de Canais de Prospecção
+  const ctxCanais = document.getElementById('chartCanais');
+  if (ctxCanais) {
+    const dadosCanais = {{ prospeccao_por_canal | tojson }};
+    new Chart(ctxCanais, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(dadosCanais),
+        datasets: [{
+          label: 'Contatos',
+          data: Object.values(dadosCanais),
+          backgroundColor: '#3b82f6',
+          borderWidth: 0,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { font: { size: 9 } }
+          },
+          x: {
+            ticks: { font: { size: 9 } }
+          }
+        }
+      }
+    });
+  }
+});
 </script>
 {% endblock %}

@@ -56,6 +56,186 @@ PAGE_SIZE = 100
 @app.route("/")
 @login_required
 def index():
+    # Parâmetros de filtro
+    corredor = request.args.get("corredor", "")
+    status_match = request.args.get("status", "")
+    prioridade = request.args.get("prioridade", "")
+    temperatura = request.args.get("temperatura", "")
+    periodo = request.args.get("periodo", "todos")  # hoje, 7d, 30d, todos
+    min_score = request.args.get("min_score", "").strip()
+    busca = request.args.get("q", "").strip()
+
+    # Data de hoje para followups e período
+    from datetime import datetime, timedelta
+    hoje = datetime.utcnow()
+    data_hoje_str = hoje.strftime("%Y-%m-%d")
+
+    # Montar query de matches preditivos para calcular contagens filtradas
+    query_matches = MatchPreditivo.query
+    
+    if corredor:
+        query_matches = query_matches.filter_by(corredor=corredor)
+    if status_match:
+        query_matches = query_matches.filter_by(status=status_match)
+    if prioridade:
+        query_matches = query_matches.filter_by(prioridade=prioridade)
+    if temperatura:
+        query_matches = query_matches.filter_by(temperatura=temperatura)
+    if min_score:
+        try:
+            query_matches = query_matches.filter(MatchPreditivo.score_match >= float(min_score))
+        except ValueError:
+            pass
+    if busca:
+        like = f"%{busca}%"
+        # Bate em transportadora ou embarcador através de joins
+        query_matches = query_matches.join(MatchPreditivo.transportadora).join(MatchPreditivo.embarcador).filter(
+            db.or_(
+                Transportadora.razao_social.ilike(like),
+                Transportadora.cnpj.ilike(like),
+                EmbarcadorProvavel.razao_social.ilike(like),
+                EmbarcadorProvavel.cnpj.ilike(like)
+            )
+        )
+        
+    if periodo == "hoje":
+        inicio_periodo = hoje.replace(hour=0, minute=0, second=0, microsecond=0)
+        query_matches = query_matches.filter(MatchPreditivo.created_at >= inicio_periodo)
+    elif periodo == "7d":
+        inicio_periodo = hoje - timedelta(days=7)
+        query_matches = query_matches.filter(MatchPreditivo.created_at >= inicio_periodo)
+    elif periodo == "30d":
+        inicio_periodo = hoje - timedelta(days=30)
+        query_matches = query_matches.filter(MatchPreditivo.created_at >= inicio_periodo)
+
+    # Contagens de Matches baseados nos filtros
+    total_matches = query_matches.count()
+    matches_alta = query_matches.filter_by(prioridade="Alta").count()
+    matches_em_contato = query_matches.filter_by(status="Em contato").count()
+    matches_negociando = query_matches.filter_by(status="Negociando").count()
+    matches_fechados = query_matches.filter_by(status="Fechado").count()
+    matches_perdidos = query_matches.filter_by(status="Perdido").count()
+
+    # Contagens gerais do sistema (parcialmente afetadas pelo corredor se filtrado)
+    query_transp = Transportadora.query
+    query_emb = EmbarcadorProvavel.query
+    if corredor:
+        query_transp = query_transp.filter_by(corredor=corredor)
+        query_emb = query_emb.filter_by(corredor_alvo=corredor)
+        
+    total_transportadoras = query_transp.count()
+    total_embarcadores = query_emb.count()
+
+    # Follow-ups (filtrados por corredor e temperatura se definidos nos matches)
+    query_fu = MatchPreditivo.query.filter(MatchPreditivo.data_proxima_acao != "")
+    if corredor:
+        query_fu = query_fu.filter_by(corredor=corredor)
+    if temperatura:
+        query_fu = query_fu.filter_by(temperatura=temperatura)
+        
+    fu_vencidos = query_fu.filter(MatchPreditivo.data_proxima_acao < data_hoje_str).count()
+    fu_hoje = query_fu.filter(MatchPreditivo.data_proxima_acao == data_hoje_str).count()
+
+    # Taxas de conversão baseadas nos filtros dos matches
+    taxa_fechamento = (matches_fechados / total_matches * 100) if total_matches > 0 else 0.0
+    taxa_resposta = ((matches_em_contato + matches_negociando + matches_fechados) / total_matches * 100) if total_matches > 0 else 0.0
+
+    # Listas rápidas do Dashboard
+    # 1. Top 10 Matches por Score
+    top_matches = query_matches.order_by(MatchPreditivo.score_match.desc()).limit(10).all()
+
+    # 2. Próximos Follow-ups (hoje ou vencidos)
+    lista_followups = query_fu.filter(MatchPreditivo.data_proxima_acao <= data_hoje_str).order_by(
+        MatchPreditivo.data_proxima_acao.desc(),
+        MatchPreditivo.score_match.desc()
+    ).limit(5).all()
+
+    # 3. Últimas Prospecções comerciais
+    query_props = ProspeccaoLog.query
+    if corredor:
+        query_props = query_props.join(ProspeccaoLog.match).filter(MatchPreditivo.corredor == corredor)
+    ultimas_prospeccoes = query_props.order_by(ProspeccaoLog.created_at.desc()).limit(5).all()
+
+    # 4. Embarcadores recém-importados
+    novos_embarcadores = query_emb.order_by(EmbarcadorProvavel.created_at.desc()).limit(5).all()
+
+    # 5. Dados para Gráficos
+    # A. Funil dos matches
+    funil_dados = {
+        "Sugerido": query_matches.filter_by(status="Sugerido").count(),
+        "Validar": query_matches.filter_by(status="Validar").count(),
+        "Abordar": query_matches.filter_by(status="Abordar").count(),
+        "Em contato": matches_em_contato,
+        "Negociando": matches_negociando,
+        "Fechado": matches_fechados,
+        "Perdido": matches_perdidos,
+        "Descartado": query_matches.filter_by(status="Descartado").count()
+    }
+    
+    # B. Matches por corredor
+    matches_por_corredor = {}
+    for nome in Config.CORREDORES:
+        matches_por_corredor[nome] = query_matches.filter_by(corredor=nome).count()
+
+    # C. Conversão por temperatura
+    conversao_temp = {
+        "Quente": query_matches.filter_by(temperatura="Quente").count(),
+        "Morno": query_matches.filter_by(temperatura="Morno").count(),
+        "Frio": query_matches.filter_by(temperatura="Frio").count()
+    }
+
+    # D. Prospecções por canal
+    prospeccao_por_canal = {
+        "WhatsApp": query_props.filter_by(canal="WhatsApp").count(),
+        "Ligação": query_props.filter_by(canal="Ligação").count(),
+        "E-mail": query_props.filter_by(canal="E-mail").count(),
+        "Outro": query_props.filter_by(canal="Outro").count()
+    }
+
+    # Verificar se a base está 100% vazia
+    base_vazia = (total_transportadoras == 0 and total_embarcadores == 0 and total_matches == 0)
+
+    return render_template(
+        "index.html",
+        total_transportadoras=total_transportadoras,
+        total_embarcadores=total_embarcadores,
+        total_matches=total_matches,
+        matches_alta=matches_alta,
+        matches_em_contato=matches_em_contato,
+        matches_negociando=matches_negociando,
+        matches_fechados=matches_fechados,
+        matches_perdidos=matches_perdidos,
+        fu_vencidos=fu_vencidos,
+        fu_hoje=fu_hoje,
+        taxa_fechamento=taxa_fechamento,
+        taxa_resposta=taxa_resposta,
+        top_matches=top_matches,
+        lista_followups=lista_followups,
+        ultimas_prospeccoes=ultimas_prospeccoes,
+        novos_embarcadores=novos_embarcadores,
+        funil_dados=funil_dados,
+        matches_por_corredor=matches_por_corredor,
+        conversao_temp=conversao_temp,
+        prospeccao_por_canal=prospeccao_por_canal,
+        corredores=Config.CORREDORES,
+        status_labels=Config.STATUS_LABELS,
+        status_list=Config.STATUS_CRM,
+        filtros=dict(
+            corredor=corredor,
+            status=status_match,
+            prioridade=prioridade,
+            temperatura=temperatura,
+            periodo=periodo,
+            min_score=min_score,
+            q=busca
+        ),
+        base_vazia=base_vazia
+    )
+
+
+@app.route("/transportadoras")
+@login_required
+def transportadoras_lista():
     corredor  = request.args.get("corredor", "")
     uf        = request.args.get("uf", "")
     status    = request.args.get("status", "")
@@ -68,7 +248,7 @@ def index():
 
     tem_filtro = bool(corredor or uf or status or cnae_ok == "1" or busca)
 
-    # Stats em UMA query agregada (era N×3 queries antes)
+    # Stats em UMA query agregada
     stats = {nome: {"total": 0, "com_frete": 0, "clientes": 0} for nome in Config.CORREDORES}
     agregados = db.session.query(
         Transportadora.corredor,
@@ -88,7 +268,7 @@ def index():
     # Sem filtro → não carrega lista (cards stats + prompt). Evita render de 7k linhas.
     if not tem_filtro:
         return render_template(
-            "index.html",
+            "transportadoras.html",
             empresas=[], total_empresas=0, page=1, total_pages=1, page_size=PAGE_SIZE,
             stats=stats, corredores=Config.CORREDORES,
             status_labels=Config.STATUS_LABELS, status_list=Config.STATUS_CRM,
@@ -136,7 +316,7 @@ def index():
         e.radar_justificativa = res["justificativa"]
 
     return render_template(
-        "index.html",
+        "transportadoras.html",
         empresas=empresas, total_empresas=total_empresas,
         page=page, total_pages=total_pages, page_size=PAGE_SIZE,
         stats=stats, corredores=Config.CORREDORES,
@@ -177,7 +357,7 @@ def importar():
         flash(f"Importação de {corredor} já está em andamento (log #{log_id}). Aguarde a anterior concluir.", "warning")
     else:
         flash(f"Importação do corredor {corredor} iniciada (log #{log_id}). Aguarde alguns minutos.", "info")
-    return redirect(url_for("index"))
+    return redirect(url_for("transportadoras_lista"))
 
 
 @app.route("/status-importacao/<int:log_id>")
@@ -645,9 +825,12 @@ def matches_lista():
     corredor   = request.args.get("corredor", "")
     prioridade = request.args.get("prioridade", "")
     status     = request.args.get("status", "")
+    temperatura = request.args.get("temperatura", "")
     uf_origem  = request.args.get("uf_origem", "")
     uf_destino = request.args.get("uf_destino", "")
     min_score  = request.args.get("min_score", "").strip()
+    fu_vencido = request.args.get("fu_vencido", "")
+    busca      = request.args.get("q", "").strip()
 
     try:
         page = max(1, int(request.args.get("page", "1")))
@@ -655,16 +838,35 @@ def matches_lista():
         page = 1
 
     query = MatchPreditivo.query
-    if corredor:   query = query.filter_by(corredor=corredor)
-    if prioridade: query = query.filter_by(prioridade=prioridade)
-    if status:     query = query.filter_by(status=status)
-    if uf_origem:  query = query.filter_by(uf_origem=uf_origem)
-    if uf_destino: query = query.filter_by(uf_destino=uf_destino)
+    
+    if busca:
+        like = f"%{busca}%"
+        # Bate em transportadora ou embarcador através de joins
+        query = query.join(MatchPreditivo.transportadora).join(MatchPreditivo.embarcador).filter(
+            db.or_(
+                Transportadora.razao_social.ilike(like),
+                Transportadora.cnpj.ilike(like),
+                EmbarcadorProvavel.razao_social.ilike(like),
+                EmbarcadorProvavel.cnpj.ilike(like)
+            )
+        )
+
+    if corredor:   query = query.filter(MatchPreditivo.corredor == corredor)
+    if prioridade: query = query.filter(MatchPreditivo.prioridade == prioridade)
+    if status:     query = query.filter(MatchPreditivo.status == status)
+    if temperatura: query = query.filter(MatchPreditivo.temperatura == temperatura)
+    if uf_origem:  query = query.filter(MatchPreditivo.uf_origem == uf_origem)
+    if uf_destino: query = query.filter(MatchPreditivo.uf_destino == uf_destino)
     if min_score:
         try:
             query = query.filter(MatchPreditivo.score_match >= float(min_score))
         except ValueError:
             pass
+            
+    if fu_vencido == "1":
+        from datetime import datetime
+        data_hoje_str = datetime.utcnow().strftime("%Y-%m-%d")
+        query = query.filter(MatchPreditivo.data_proxima_acao != "", MatchPreditivo.data_proxima_acao <= data_hoje_str)
 
     # Ordenar por maior score de match decrescente
     query = query.order_by(MatchPreditivo.score_match.desc())
@@ -719,7 +921,17 @@ def matches_lista():
         page=page, total_pages=total_pages, page_size=PAGE_SIZE_MATCH,
         stats=stats, corredores=Config.CORREDORES,
         status_labels=status_labels, status_list=status_list,
-        filtros=dict(corredor=corredor, prioridade=prioridade, status=status, uf_origem=uf_origem, uf_destino=uf_destino, min_score=min_score),
+        filtros=dict(
+            corredor=corredor,
+            prioridade=prioridade,
+            status=status,
+            temperatura=temperatura,
+            uf_origem=uf_origem,
+            uf_destino=uf_destino,
+            min_score=min_score,
+            fu_vencido=fu_vencido,
+            q=busca
+        ),
         ufs_origem=ufs_origem, ufs_destino=ufs_destino
     )
 

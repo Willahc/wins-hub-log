@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Matches Preditivos — WiNS Hub Log{% endblock %}
+{% block title_header %}Matches Preditivos{% endblock %}
 
 {% block content %}
 
@@ -37,7 +38,12 @@
 
 {# ── Barra de filtros ─────────────────────────────────────────────────────── #}
 <div class="filter-bar p-3 mb-3">
-  <form method="GET" class="row g-2 align-items-end">
+  <form method="GET" action="/matches" class="row g-2 align-items-end">
+    <div class="col-12 col-md-3">
+      <label class="form-label small text-muted mb-1">Buscar</label>
+      <input type="text" name="q" class="form-control form-control-sm"
+             placeholder="Buscar transportadora ou embarcador..." value="{{ filtros.q }}">
+    </div>
     <div class="col-6 col-md-2">
       <label class="form-label small text-muted mb-1">Corredor</label>
       <select name="corredor" class="form-select form-select-sm">
@@ -47,13 +53,24 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-6 col-md-2">
+    <div class="col-6 col-md-1" style="flex: 0 0 10%; max-width: 10%;">
       <label class="form-label small text-muted mb-1">Prioridade</label>
       <select name="prioridade" class="form-select form-select-sm">
         <option value="">Todas</option>
         <option value="Alta" {% if filtros.prioridade == 'Alta' %}selected{% endif %}>Alta</option>
         <option value="Média" {% if filtros.prioridade == 'Média' %}selected{% endif %}>Média</option>
         <option value="Baixa" {% if filtros.prioridade == 'Baixa' %}selected{% endif %}>Baixa</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-1" style="flex: 0 0 10%; max-width: 10%;">
+      <label class="form-label small text-muted mb-1">Temperatura</label>
+      <select name="temperatura" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        <option value="Quente" {% if filtros.temperatura == 'Quente' %}selected{% endif %}>Quente</option>
+        <option value="Morno" {% if filtros.temperatura == 'Morno' %}selected{% endif %}>Morno</option>
+        <option value="Frio" {% if filtros.temperatura == 'Frio' %}selected{% endif %}>Frio</option>
+        <option value="Fechado" {% if filtros.temperatura == 'Fechado' %}selected{% endif %}>Fechado</option>
+        <option value="Perdido" {% if filtros.temperatura == 'Perdido' %}selected{% endif %}>Perdido</option>
       </select>
     </div>
     <div class="col-6 col-md-2">
@@ -67,34 +84,23 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-3 col-md-1">
-      <label class="form-label small text-muted mb-1">UF Origem</label>
-      <select name="uf_origem" class="form-select form-select-sm">
-        <option value="">Origem</option>
-        {% for u in ufs_origem %}
-          <option value="{{ u }}" {% if filtros.uf_origem == u %}selected{% endif %}>{{ u }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-3 col-md-1">
-      <label class="form-label small text-muted mb-1">UF Destino</label>
-      <select name="uf_destino" class="form-select form-select-sm">
-        <option value="">Destino</option>
-        {% for u in ufs_destino %}
-          <option value="{{ u }}" {% if filtros.uf_destino == u %}selected{% endif %}>{{ u }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-2">
+    <div class="col-6 col-md-1">
       <label class="form-label small text-muted mb-1">Min Score</label>
       <input type="number" name="min_score" class="form-control form-control-sm"
-             placeholder="Ex: 50" value="{{ filtros.min_score }}" min="0" max="100">
+             placeholder="Score" value="{{ filtros.min_score }}" min="0" max="100">
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="form-check form-switch ms-1 mb-1">
+        <input class="form-check-input" type="checkbox" name="fu_vencido" value="1" id="fuCheck"
+               {% if filtros.fu_vencido == '1' %}checked{% endif %}>
+        <label class="form-check-label small" for="fuCheck">Só Vencidos/Hoje</label>
+      </div>
     </div>
     <div class="col-12 col-md-2 d-flex gap-1">
       <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
         <i class="bi bi-funnel"></i> Filtrar
       </button>
-      <a href="/matches" class="btn btn-sm btn-outline-secondary">
+      <a href="/matches" class="btn btn-sm btn-outline-secondary" title="Limpar Filtros">
         <i class="bi bi-x"></i>
       </a>
     </div>
@@ -151,7 +157,7 @@
         <td>
           <div class="d-flex align-items-center gap-1">
             <span class="radar-score-indicator" style="font-size: 1.1rem;">{{ m.score_match }}</span>
-            <span class="badge badge-radar-{{ m.prioridade | lower }}">
+            <span class="badge-wins badge-prio-{{ 'alta' if m.prioridade == 'Alta' else 'media' if m.prioridade == 'Média' else 'baixa' }}">
               {{ m.prioridade }}
             </span>
           </div>
@@ -167,7 +173,7 @@
           {% if m.data_proxima_acao %}
             {% set vencido = m.data_proxima_acao < hoje and m.status not in ['Fechado', 'Descartado'] %}
             <div class="mt-1 p-1 bg-dark rounded border border-secondary" style="font-size: 0.7rem; max-width: 200px;">
-              <span class="badge badge-temp-{{ m.temperatura | lower }}" style="font-size:0.6rem;">{{ m.temperatura }}</span>
+              <span class="badge-wins badge-temp-{{ m.temperatura | lower }}" style="font-size:0.6rem;">{{ m.temperatura }}</span>
               <div class="text-light mt-1 text-truncate">
                 Ação: <strong>{{ m.proxima_acao or 'Sem ação' }}</strong>
               </div>
@@ -206,7 +212,7 @@
           <div class="text-muted small" style="font-size: 0.7rem;">{{ m.embarcador.tipo_carga_provavel or 'não identificado' }}</div>
         </td>
         <td>
-          <span class="badge badge-{{ m.status | lower | replace(' ', '_') }}" id="badge-{{ m.id }}">
+          <span class="badge-wins badge-status-{{ m.status | lower | replace(' ', '_') }}" id="badge-{{ m.id }}">
             {{ status_labels[m.status][0] }}
           </span>
         </td>

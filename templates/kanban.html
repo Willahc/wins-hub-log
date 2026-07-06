@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Kanban Comercial — WiNS Hub Log{% endblock %}
+{% block title_header %}Kanban Comercial{% endblock %}
 
 {% block content %}
 
@@ -171,7 +172,7 @@
         
         {# Header do Card #}
         <div class="d-flex justify-content-between align-items-start mb-1">
-          <span class="badge badge-radar-{{ m.prioridade | lower }}" style="font-size:0.6rem;">{{ m.prioridade }}</span>
+          <span class="badge-wins badge-prio-{{ 'alta' if m.prioridade == 'Alta' else 'media' if m.prioridade == 'Média' else 'baixa' }}" style="font-size:0.6rem;">{{ m.prioridade }}</span>
           <span class="radar-score-indicator small">{{ m.score_match }} pts</span>
         </div>
         
@@ -263,7 +264,7 @@
           {% set vencido = m.data_proxima_acao < hoje and m.status not in ['Fechado', 'Descartado', 'Perdido'] %}
           <div class="p-1 bg-dark rounded border border-secondary mb-2" style="font-size: 0.65rem;">
             <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="badge badge-temp-{{ m.temperatura | lower }}" style="font-size:0.55rem;">{{ m.temperatura }}</span>
+              <span class="badge-wins badge-temp-{{ m.temperatura | lower }}" style="font-size:0.55rem;">{{ m.temperatura }}</span>
               <span class="badge {{ 'bg-danger animate-pulse' if vencido else 'bg-secondary' }}" style="font-size:0.55rem;">{{ m.data_proxima_acao }}</span>
             </div>
             <div class="text-truncate text-white">Ação: {{ m.proxima_acao or '—' }}</div>
