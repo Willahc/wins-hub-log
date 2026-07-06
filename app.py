@@ -8,7 +8,7 @@ from flask import (Flask, Response, flash, jsonify, redirect,
 from flask_sqlalchemy import SQLAlchemy
 
 from config import Config
-from models import ImportLog, Transportadora, db
+from models import ImportLog, Transportadora, EmbarcadorProvavel, db
 from jobs import iniciar_importacao
 
 app = Flask(__name__)
@@ -334,6 +334,237 @@ def radar():
         filtros=dict(corredor=corredor, uf=uf, status=status, cnae_frete=cnae_ok, q=busca, min_score=min_score, prioridade=prioridade),
         ufs=ufs
     )
+
+
+
+# ─── Radar de Embarcadores Prováveis ─────────────────────────────────────────
+
+@app.route("/embarcadores")
+@login_required
+def embarcadores_lista():
+    corredor   = request.args.get("corredor", "")
+    uf         = request.args.get("uf", "")
+    cidade     = request.args.get("cidade", "").strip()
+    prioridade = request.args.get("prioridade", "")
+    status     = request.args.get("status", "")
+    busca      = request.args.get("q", "").strip()
+    min_score  = request.args.get("min_score", "").strip()
+
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+    except ValueError:
+        page = 1
+
+    query = EmbarcadorProvavel.query
+    if corredor:   query = query.filter_by(corredor_alvo=corredor)
+    if uf:         query = query.filter_by(uf=uf)
+    if cidade:     query = query.filter(EmbarcadorProvavel.cidade.ilike(f"%{cidade}%"))
+    if prioridade: query = query.filter_by(prioridade=prioridade)
+    if status:     query = query.filter_by(status_crm=status)
+    if busca:
+        like = f"%{busca}%"
+        query = query.filter(db.or_(
+            EmbarcadorProvavel.razao_social.ilike(like),
+            EmbarcadorProvavel.nome_fantasia.ilike(like),
+            EmbarcadorProvavel.cnpj.ilike(like),
+            EmbarcadorProvavel.cnae_descricao.ilike(like),
+        ))
+    if min_score:
+        try:
+            query = query.filter(EmbarcadorProvavel.score_demanda >= float(min_score))
+        except ValueError:
+            pass
+
+    # Ordenar por maior score de demanda primeiro
+    query = query.order_by(EmbarcadorProvavel.score_demanda.desc(), EmbarcadorProvavel.razao_social)
+
+    PAGE_SIZE_EMB = 50
+    total_empresas = query.count()
+    total_pages = max(1, (total_empresas + PAGE_SIZE_EMB - 1) // PAGE_SIZE_EMB)
+    page = min(page, total_pages)
+    
+    embarcadores = query.limit(PAGE_SIZE_EMB).offset((page - 1) * PAGE_SIZE_EMB).all()
+
+    ufs = [r[0] for r in db.session.query(EmbarcadorProvavel.uf).distinct().order_by(EmbarcadorProvavel.uf).all() if r[0]]
+    
+    # Stats para os cards
+    stats = {nome: {"total": 0, "prioritarios": 0, "clientes": 0} for nome in Config.CORREDORES}
+    agregados = db.session.query(
+        EmbarcadorProvavel.corredor_alvo,
+        db.func.count().label("total"),
+        db.func.sum(db.case((EmbarcadorProvavel.prioridade == "Alta", 1), else_=0)).label("prioritarios"),
+        db.func.sum(db.case((EmbarcadorProvavel.status_crm == "cliente", 1), else_=0)).label("clientes"),
+    ).group_by(EmbarcadorProvavel.corredor_alvo).all()
+    
+    for cor, total, prioritarios, clientes in agregados:
+        if cor in stats:
+            stats[cor] = {"total": int(total or 0),
+                          "prioritarios": int(prioritarios or 0),
+                          "clientes": int(clientes or 0)}
+
+    ultimo_log = ImportLog.query.order_by(ImportLog.iniciado.desc()).first()
+
+    return render_template(
+        "embarcadores.html",
+        empresas=embarcadores, total_empresas=total_empresas,
+        page=page, total_pages=total_pages, page_size=PAGE_SIZE_EMB,
+        stats=stats, corredores=Config.CORREDORES,
+        status_labels=Config.STATUS_LABELS, status_list=Config.STATUS_CRM,
+        ultimo_log=ultimo_log,
+        filtros=dict(corredor=corredor, uf=uf, cidade=cidade, prioridade=prioridade, status=status, q=busca, min_score=min_score),
+        ufs=ufs
+    )
+
+
+@app.route("/embarcadores/importar", methods=["POST"])
+@login_required
+def importar_embarcadores():
+    if "arquivo" not in request.files:
+        flash("Nenhum arquivo enviado.", "danger")
+        return redirect(url_for("embarcadores_lista"))
+        
+    file = request.files["arquivo"]
+    if file.filename == "":
+        flash("Nenhum arquivo selecionado.", "danger")
+        return redirect(url_for("embarcadores_lista"))
+
+    try:
+        stream = io.StringIO(file.stream.read().decode("utf-8-sig"), newline=None)
+    except UnicodeDecodeError:
+        try:
+            file.stream.seek(0)
+            stream = io.StringIO(file.stream.read().decode("latin1"), newline=None)
+        except Exception as e:
+            flash(f"Erro ao decodificar arquivo: {e}", "danger")
+            return redirect(url_for("embarcadores_lista"))
+
+    sample = stream.read(2048)
+    stream.seek(0)
+    delimiter = ";" if ";" in sample else ","
+    
+    reader = csv.DictReader(stream, delimiter=delimiter)
+    
+    from radar.embarcadores import avaliar_embarcador
+    
+    sucessos = 0
+    erros = 0
+    
+    for row in reader:
+        cnpj = row.get("cnpj", "").strip()
+        corredor_alvo = row.get("corredor_alvo", "").strip()
+        if not cnpj or not corredor_alvo:
+            erros += 1
+            continue
+            
+        try:
+            embarcador = EmbarcadorProvavel.query.filter_by(cnpj=cnpj, corredor_alvo=corredor_alvo).first()
+            if not embarcador:
+                embarcador = EmbarcadorProvavel(cnpj=cnpj, corredor_alvo=corredor_alvo)
+                db.session.add(embarcador)
+                
+            embarcador.razao_social = row.get("razao_social", "").strip()
+            embarcador.nome_fantasia = row.get("nome_fantasia", "").strip()
+            embarcador.cidade = row.get("cidade", "").strip()
+            embarcador.uf = row.get("uf", "").strip()
+            embarcador.cnae = row.get("cnae", "").strip()
+            embarcador.cnae_descricao = row.get("cnae_descricao", "").strip()
+            embarcador.telefone = row.get("telefone", "").strip()
+            embarcador.email = row.get("email", "").strip()
+            embarcador.site = row.get("site", "").strip()
+            embarcador.origem_provavel = row.get("origem_provavel", "").strip()
+            embarcador.destino_provavel = row.get("destino_provavel", "").strip()
+            embarcador.fonte = row.get("fonte", "").strip()
+            
+            # Avaliar Radar
+            res = avaliar_embarcador(embarcador)
+            embarcador.score_demanda = res["score_total"]
+            embarcador.prioridade = res["prioridade"]
+            embarcador.setor_predito = res["setor_predito"]
+            embarcador.tipo_carga_provavel = res["tipo_carga_provavel"]
+            embarcador.carrocerias_provaveis = res["carrocerias_provaveis"]
+            embarcador.notas = row.get("notas", "").strip() or embarcador.notas
+
+            db.session.commit()
+            sucessos += 1
+        except Exception as ex:
+            db.session.rollback()
+            erros += 1
+            print(f"Erro ao importar linha {row}: {ex}")
+
+    flash(f"Importação concluída. {sucessos} embarcadores importados/atualizados. {erros} erros.", "success" if erros == 0 else "warning")
+    return redirect(url_for("embarcadores_lista"))
+
+
+@app.route("/embarcadores/exportar")
+@login_required
+def exportar_embarcadores():
+    corredor = request.args.get("corredor", "")
+    status   = request.args.get("status", "")
+
+    query = EmbarcadorProvavel.query
+    if corredor:
+        query = query.filter_by(corredor_alvo=corredor)
+    if status:
+        query = query.filter_by(status_crm=status)
+
+    embarcadores = query.order_by(EmbarcadorProvavel.score_demanda.desc(), EmbarcadorProvavel.razao_social).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow([
+        "cnpj", "razao_social", "cidade", "uf", "cnae", "cnae_descricao",
+        "setor_predito", "tipo_carga_provavel", "carrocerias_provaveis",
+        "corredor_alvo", "origem_provavel", "destino_provavel",
+        "score_demanda", "prioridade", "status_crm", "telefone", "email", "site", "notas"
+    ])
+    
+    for e in embarcadores:
+        writer.writerow([
+            e.cnpj, e.razao_social or e.nome_fantasia,
+            e.cidade, e.uf, e.cnae or "", e.cnae_descricao or "",
+            e.setor_predito or "", e.tipo_carga_provavel or "", e.carrocerias_provaveis or "",
+            e.corredor_alvo or "", e.origem_provavel or "", e.destino_provavel or "",
+            e.score_demanda, e.prioridade, e.status_crm,
+            e.telefone or "", e.email or "", e.site or "", e.notas or ""
+        ])
+
+    output.seek(0)
+    nome_arquivo = f"embarcadores_{corredor.replace('→','-') or 'todos'}.csv"
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"},
+    )
+
+
+@app.route("/embarcadores/<int:embarcador_id>/crm", methods=["POST"])
+@login_required
+def atualizar_embarcador_crm(embarcador_id):
+    emb = EmbarcadorProvavel.query.get_or_404(embarcador_id)
+    
+    emb.status_crm      = request.form.get("status_crm", emb.status_crm)
+    emb.notas           = request.form.get("notas", emb.notas)
+    emb.telefone        = request.form.get("telefone", emb.telefone)
+    emb.email           = request.form.get("email", emb.email)
+    emb.site            = request.form.get("site", emb.site)
+    emb.origem_provavel = request.form.get("origem_provavel", emb.origem_provavel)
+    emb.destino_provavel= request.form.get("destino_provavel", emb.destino_provavel)
+    emb.tipo_carga_provavel = request.form.get("tipo_carga_provavel", emb.tipo_carga_provavel)
+    
+    from radar.embarcadores import avaliar_embarcador
+    res = avaliar_embarcador(emb)
+    emb.score_demanda = res["score_total"]
+    emb.prioridade = res["prioridade"]
+    emb.setor_predito = res["setor_predito"]
+    emb.carrocerias_provaveis = res["carrocerias_provaveis"]
+
+    db.session.commit()
+    return jsonify({
+        "ok": True, 
+        "status": emb.status_crm, 
+        "score": emb.score_demanda, 
+        "prioridade": emb.prioridade
+    })
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────

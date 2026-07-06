@@ -78,3 +78,37 @@ class ImportLog(db.Model):
             postgresql_where=text("status = 'rodando'"),
         ),
     )
+
+
+class EmbarcadorProvavel(db.Model):
+    __tablename__ = "embarcadores_provaveis"
+
+    id                    = db.Column(db.Integer, primary_key=True)
+    cnpj                  = db.Column(db.String(18), nullable=False, index=True)
+    razao_social          = db.Column(db.Text)
+    nome_fantasia         = db.Column(db.Text)
+    cidade                = db.Column(db.String(100), index=True)
+    uf                    = db.Column(db.String(2), index=True)
+    cnae                  = db.Column(db.String(10))
+    cnae_descricao        = db.Column(db.Text)
+    setor_predito         = db.Column(db.String(100))
+    tipo_carga_provavel   = db.Column(db.String(100))
+    carrocerias_provaveis = db.Column(db.Text)
+    corredor_alvo         = db.Column(db.String(20), index=True)
+    origem_provavel       = db.Column(db.String(100))
+    destino_provavel      = db.Column(db.String(100))
+    score_demanda         = db.Column(db.Float)
+    prioridade            = db.Column(db.String(20))
+    fonte                 = db.Column(db.String(100))
+    telefone              = db.Column(db.String(50))
+    email                 = db.Column(db.String(150))
+    site                  = db.Column(db.String(200))
+    status_crm            = db.Column(db.String(20), default="nao_contatada", index=True)
+    notas                 = db.Column(db.Text)
+    created_at            = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at            = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_cnpj_corredor_alvo", "cnpj", "corredor_alvo", unique=True),
+    )
+
