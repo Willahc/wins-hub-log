@@ -16,7 +16,6 @@ def migrate():
         print("Abortando migracao: Falha ao gerar o backup de seguranca preventivo.")
         return
 
-    # 2. Mapeamento de tabelas, colunas, tipos e valores padroes que precisam existir
     schema_esperado = {
         "matches_preditivos": [
             ("temperatura", "VARCHAR(20) DEFAULT 'Frio'"),
@@ -30,6 +29,11 @@ def migrate():
             ("resultado", "VARCHAR(50)"),
             ("responsavel", "VARCHAR(100) DEFAULT 'Comercial'"),
             ("temperatura", "VARCHAR(20)")
+        ],
+        "import_logs": [
+            ("progresso", "INTEGER DEFAULT 0"),
+            ("total_inserido", "INTEGER DEFAULT 0"),
+            ("erro", "TEXT")
         ]
     }
 

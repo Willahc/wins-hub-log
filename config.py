@@ -1,4 +1,4 @@
-﻿import os
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,6 +38,8 @@ class Config:
     BRASILAPI_URL     = "https://brasilapi.com.br/api/cnpj/v1/{}"
     # Tempo entre chamadas de API externas (segundos) — usado para evitar bursts
     DELAY_API_S       = 0.4
+    # Limite máximo de registros importados e enriquecidos em lote para evitar rate limit
+    IMPORT_LIMIT      = int(os.environ.get("IMPORT_LIMIT", 50))
     # Configuráveis para chamadas à BrasilAPI
     BRASILAPI_TIMEOUT = float(os.environ.get("BRASILAPI_TIMEOUT", 10))
     BRASILAPI_MAX_RETRIES = int(os.environ.get("BRASILAPI_MAX_RETRIES", 3))

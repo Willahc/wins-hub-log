@@ -69,6 +69,11 @@ class ImportLog(db.Model):
     mensagem   = db.Column(db.Text)
     iniciado   = db.Column(db.DateTime, default=datetime.utcnow)
     finalizado = db.Column(db.DateTime)
+    
+    # Novas colunas
+    progresso  = db.Column(db.Integer, default=0)
+    total_inserido = db.Column(db.Integer, default=0)
+    erro       = db.Column(db.Text)
 
     __table_args__ = (
         Index(

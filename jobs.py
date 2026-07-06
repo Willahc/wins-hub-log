@@ -1,4 +1,4 @@
-﻿import io, time, threading, unicodedata, urllib.request, csv
+import io, time, threading, unicodedata, urllib.request, csv
 from datetime import datetime, timedelta
 import logging
 import requests
@@ -115,42 +115,128 @@ def filtrar_corredor(registros, nome_corredor):
 def rodar_importacao(app, corredor, log_id):
     with app.app_context():
         log = ImportLog.query.get(log_id)
+        if not log:
+            return
+        
         try:
             logger.info("Import started: corredor=%s log_id=%s", corredor, log_id)
-            log.mensagem = "Baixando RNTRC..."; db.session.commit()
-            registros = baixar_rntrc()
-            logger.info("RNTRC downloaded (%s records).", len(registros))
-            log.mensagem = f"Filtrando {corredor}..."; db.session.commit()
+            
+            # Etapa 1: Iniciado (5%)
+            log.progresso = 5
+            log.mensagem = "Iniciando importação..."
+            db.session.commit()
+            
+            # Etapa 2: Baixando dados ANTT (10%)
+            log.progresso = 10
+            log.mensagem = "Baixando dados oficiais RNTRC/ANTT (pode demorar alguns segundos)..."
+            db.session.commit()
+            
+            try:
+                registros = baixar_rntrc()
+                logger.info("RNTRC downloaded (%s records).", len(registros))
+            except Exception as e_down:
+                raise Exception(f"Falha ao baixar dados ANTT/RNTRC: {str(e_down)}")
+            
+            # Etapa 3: Arquivo carregado (25%)
+            log.progresso = 25
+            log.mensagem = f"Arquivo carregado ({len(registros)} registros brutos)."
+            db.session.commit()
+            
+            # Etapa 4: Filtrando corredor (40%)
+            log.progresso = 40
+            log.mensagem = f"Filtrando transportadoras do corredor {corredor}..."
+            db.session.commit()
+            
             filtrados = filtrar_corredor(registros, corredor)
-            log.total = len(filtrados); db.session.commit()
+            log.total = len(filtrados)
+            db.session.commit()
             logger.info("Filtered %s records for %s", log.total, corredor)
-            for row in filtrados:
+            
+            # Aplicando limite configurável para evitar rate-limit
+            limite = Config.IMPORT_LIMIT
+            if limite and limite > 0:
+                logger.info("Applying IMPORT_LIMIT=%s on filtered list", limite)
+                processar_lote = filtrados[:limite]
+                log.mensagem = f"Filtrado corredor (limitado a {limite} de {log.total} para segurança da API)."
+            else:
+                processar_lote = filtrados
+                log.mensagem = f"Filtrado corredor ({log.total} registros encontrados)."
+                
+            db.session.commit()
+            
+            # Etapa 5: Enriquecendo empresas (60% até 85%)
+            total_lote = len(processar_lote)
+            log.progresso = 60
+            db.session.commit()
+            
+            inseridos = 0
+            for idx, row in enumerate(processar_lote, 1):
+                # Calcular progresso granular na etapa de enriquecimento
+                log.progresso = 60 + int((idx / max(total_lote, 1)) * 25) # Vai de 60 a 85
+                log.mensagem = f"Enriquecendo e validando {idx}/{total_lote}..."
+                
                 cnpj_limpo = limpar_cnpj(row["cpfcnpjtransportador"])
                 cnpj_fmt   = formatar_cnpj(cnpj_limpo)
+                
+                # Enriquecimento via BrasilAPI
                 dados = enriquecer_cnpj(cnpj_limpo)
-                # pequena espera entre chamadas (configurável)
                 time.sleep(Config.DELAY_API_S)
+                
                 e = Transportadora.query.filter_by(cnpj=cnpj_fmt).first()
                 if not e:
-                    e = Transportadora(cnpj=cnpj_fmt); db.session.add(e)
-                e.nome_rntrc=row.get("nome_transportador",""); e.numero_rntrc=row.get("numero_rntrc","")
-                e.municipio=row.get("municipio",""); e.uf=row.get("uf",""); e.corredor=corredor
-                e.razao_social=dados.get("razao_social",""); e.nome_fantasia=dados.get("nome_fantasia","")
-                e.situacao_rf=dados.get("situacao_rf",""); e.data_abertura=dados.get("data_abertura","")
-                e.cnae_principal=dados.get("cnae_principal",""); e.tem_cnae_frete=dados.get("tem_cnae_frete",False)
-                e.cnaes_secundarios=dados.get("cnaes_secundarios","")
-                e.logradouro=dados.get("logradouro",""); e.bairro=dados.get("bairro",""); e.cep=dados.get("cep","")
-                e.telefone=dados.get("telefone",""); e.email=dados.get("email","")
-                e.porte=dados.get("porte",""); e.capital_social=dados.get("capital_social")
-                e.socios=dados.get("socios",""); e.atualizado_em=datetime.utcnow()
-                log.processado += 1; log.mensagem=f"Processando {log.processado}/{log.total}..."; db.session.commit()
-                if log.processado % 50 == 0:
-                    logger.info("Processed %s/%s for %s", log.processado, log.total, corredor)
-            log.status="concluido"; log.mensagem=f"Concluido: {log.total} empresas."; log.finalizado=datetime.utcnow(); db.session.commit()
+                    e = Transportadora(cnpj=cnpj_fmt)
+                    db.session.add(e)
+                    inseridos += 1
+                
+                # Atualizando dados
+                e.nome_rntrc = row.get("nome_transportador", "")
+                e.numero_rntrc = row.get("numero_rntrc", "")
+                e.municipio = row.get("municipio", "")
+                e.uf = row.get("uf", "")
+                e.corredor = corredor
+                e.razao_social = dados.get("razao_social", e.razao_social or "")
+                e.nome_fantasia = dados.get("nome_fantasia", e.nome_fantasia or "")
+                e.situacao_rf = dados.get("situacao_rf", e.situacao_rf or "")
+                e.data_abertura = dados.get("data_abertura", e.data_abertura or "")
+                e.cnae_principal = dados.get("cnae_principal", e.cnae_principal or "")
+                e.tem_cnae_frete = dados.get("tem_cnae_frete", e.tem_cnae_frete or False)
+                e.cnaes_secundarios = dados.get("cnaes_secundarios", e.cnaes_secundarios or "")
+                e.logradouro = dados.get("logradouro", e.logradouro or "")
+                e.bairro = dados.get("bairro", e.bairro or "")
+                e.cep = dados.get("cep", e.cep or "")
+                e.telefone = dados.get("telefone", e.telefone or "")
+                e.email = dados.get("email", e.email or "")
+                e.porte = dados.get("porte", e.porte or "")
+                e.capital_social = dados.get("capital_social", e.capital_social)
+                e.socios = dados.get("socios", e.socios or "")
+                e.atualizado_em = datetime.utcnow()
+                
+                log.processado += 1
+                log.total_inserido = inseridos
+                db.session.commit()
+                
+            # Etapa 6: Gravando banco e finalizando (85% até 100%)
+            log.progresso = 85
+            log.mensagem = "Gravando registros finais..."
+            db.session.commit()
+            
+            # Commit final redundante para segurança
+            db.session.commit()
+            
+            log.status = "concluido"
+            log.progresso = 100
+            log.mensagem = f"Concluído: {total_lote} processados ({inseridos} novos inseridos)."
+            log.finalizado = datetime.utcnow()
+            db.session.commit()
             logger.info("Import concluded: corredor=%s processed=%s", corredor, log.processado)
+            
         except Exception as ex:
             logger.exception("Import failed for corredor=%s: %s", corredor, ex)
-            log.status="erro"; log.mensagem=str(ex); db.session.commit()
+            log.status = "erro"
+            log.erro = str(ex)
+            log.mensagem = f"Erro na importação: {str(ex)}"
+            log.finalizado = datetime.utcnow()
+            db.session.commit()
 
 STALE_RODANDO_MIN = 30  # job iniciado há > 30 min sem heartbeat = job morto
 

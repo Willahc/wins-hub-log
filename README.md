@@ -282,8 +282,23 @@ Para validar a integridade do WiNS Hub Log no ambiente de testes:
 - [ ] **Prospecção Registrada**: Clicar em um atalho de contato rápido ou preencher o formulário manual de log de contato e verificar se o indicador atualizou o card e inseriu o log no histórico.
 - [ ] **Métricas Atualizadas**: Acessar `/metricas` e conferir se as estatísticas gerais do funil e as taxas de resposta/conversão comercial computaram os registros.
 
+## Diagnóstico de importação de transportadoras
 
+A importação de frotas ativas é realizada de forma multithread diretamente pelo dashboard através da integração de dados públicos da ANTT (RNTRC) com enriquecimento via BrasilAPI.
 
+### Como iniciar e monitorar a importação:
+1. Acesse a tela de **Transportadoras** no dashboard.
+2. Clique em **Importar corredor** e selecione o trecho desejado (ex: `SC→SP`).
+3. Uma barra de progresso em tempo real acompanhará as etapas e exibirá alertas imediatos caso ocorram instabilidades nas fontes externas.
 
+### Como rodar o script de diagnóstico técnico:
+Caso a importação apresente travamentos ou queiras testar as conexões e os dados da ANTT localmente, você pode rodar o utilitário de testes:
+```bash
+python scripts/debug_import_corredor.py
+```
+Esse script executará o download, o filtro do corredor e a inserção síncrona de 50 registros no banco SQLite, detalhando qualquer falha de rede ou timeout.
 
-
+### Principais causas de erros na importação:
+*   **Fonte ANTT Indisponível/Instável**: O portal de Dados Abertos da ANTT pode retornar timeouts. O sistema captura a falha e mostra a mensagem `"Falha ao baixar dados ANTT/RNTRC"` em vermelho na tela.
+*   **Rate Limit da BrasilAPI**: A API pública de CNPJ possui limites de requisições por minuto por IP. Por isso, a importação no SQLite possui a trava de segurança `IMPORT_LIMIT = 50` em `Config` para processar em lotes seguros.
+*   **Banco Bloqueado (Database Locked)**: Ocorre se múltiplas threads tentarem escrever simultaneamente no SQLite. O sistema gerencia as transações de forma controlada a cada commit de processamento para evitar conflitos de gravação.

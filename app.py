@@ -364,12 +364,19 @@ def importar():
 @login_required
 def status_importacao(log_id):
     log = ImportLog.query.get_or_404(log_id)
+    is_ok = log.status != "erro"
     return jsonify({
-        "status":     log.status,
-        "total":      log.total,
+        "ok": is_ok,
+        "status": log.status,
+        "progress": log.progresso,
+        "message": log.mensagem,
+        "total_processado": log.processado,
+        "total_inserido": log.total_inserido or 0,
+        "error": log.erro or "",
+        "pct": log.progresso, # compatibilidade com frontend antigo
+        "total": log.total,
         "processado": log.processado,
-        "mensagem":   log.mensagem,
-        "pct":        round(log.processado / max(log.total, 1) * 100),
+        "mensagem": log.mensagem
     })
 
 
