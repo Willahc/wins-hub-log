@@ -672,7 +672,13 @@ def gerar_matches():
 def atualizar_match_crm(match_id):
     match = MatchPreditivo.query.get_or_404(match_id)
     match.status = request.form.get("status", match.status)
-    match.notas  = request.form.get("notas", match.notas)
+    match.notas  = request.form.get("notes", request.form.get("notas", match.notas))
+    
+    # Atualizar campos de Cadência Comercial se fornecidos
+    match.temperatura = request.form.get("temperatura", match.temperatura)
+    match.proxima_acao = request.form.get("proxima_acao", match.proxima_acao)
+    match.data_proxima_acao = request.form.get("data_proxima_acao", match.data_proxima_acao)
+    
     db.session.commit()
     return jsonify({"ok": True, "status": match.status})
 
@@ -777,7 +783,11 @@ def prospeccao_match(match_id):
         "email_emb": email_emb,
         "contato_transp": contato_transp,
         "email_transp": email_transp,
-        "logs": logs
+        "logs": logs,
+        "temperatura": match.temperatura or "Frio",
+        "proxima_acao": match.proxima_acao or "",
+        "data_proxima_acao": match.data_proxima_acao or "",
+        "resultado_ultimo": match.resultado_ultimo or ""
     })
 
 
@@ -794,11 +804,28 @@ def criar_prospeccao_log(match_id):
         destinatario_contato=request.form.get("destinatario_contato", "").strip(),
         mensagem=request.form.get("mensagem", "").strip(),
         status=request.form.get("status", "Gerada").strip(),
-        observacao=request.form.get("observacao", "").strip()
+        observacao=request.form.get("observacao", "").strip(),
+        
+        # Campos de Cadência
+        resultado=request.form.get("resultado", "").strip(),
+        temperatura=request.form.get("temperatura", "Frio").strip(),
+        proxima_acao=request.form.get("proxima_acao", "").strip(),
+        data_proxima_acao=request.form.get("data_proxima_acao", "").strip(),
+        responsavel=request.form.get("responsavel", "Comercial").strip()
     )
     db.session.add(log)
-    db.session.commit()
     
+    # Sincronizar dados mais recentes no Match Comercial Preditivo
+    if log.temperatura:
+        match.temperatura = log.temperatura
+    if log.proxima_acao:
+        match.proxima_acao = log.proxima_acao
+    if log.data_proxima_acao:
+        match.data_proxima_acao = log.data_proxima_acao
+    if log.resultado:
+        match.resultado_ultimo = log.resultado
+        
+    db.session.commit()
     return jsonify({"ok": True, "log_id": log.id})
 
 
@@ -830,6 +857,147 @@ def prospeccao_historico():
         canal_list=canal_list,
         corredores=Config.CORREDORES,
         filtros=dict(canal=canal, status=status, corredor=corredor, dest_tipo=dest_tipo)
+    )
+
+
+
+# ─── Cadência Comercial e Métricas ───────────────────────────────────────────
+
+@app.route("/metricas")
+@login_required
+def metricas_comerciais():
+    from radar.metricas import (
+        calcular_metricas_funil,
+        calcular_metricas_por_corredor,
+        calcular_metricas_por_setor,
+        calcular_metricas_por_canal
+    )
+    
+    stats_funil = calcular_metricas_funil()
+    por_corredor = calcular_metricas_por_corredor()
+    por_setor = calcular_metricas_por_setor()
+    por_canal = calcular_metricas_por_canal()
+    
+    from datetime import date
+    hoje = date.today().isoformat()
+    
+    # Trazer follow-ups não resolvidos (onde data_proxima_acao é preenchida e status do match não é Fechado ou Descartado)
+    followups = MatchPreditivo.query.filter(
+        MatchPreditivo.data_proxima_acao.isnot(None),
+        MatchPreditivo.data_proxima_acao != "",
+        ~MatchPreditivo.status.in_(["Fechado", "Descartado"])
+    ).order_by(MatchPreditivo.data_proxima_acao.asc()).limit(30).all()
+    
+    return render_template(
+        "metricas.html",
+        stats=stats_funil,
+        por_corredor=por_corredor,
+        por_setor=por_setor,
+        por_canal=por_canal,
+        followups=followups,
+        hoje=hoje,
+        corredores=Config.CORREDORES
+    )
+
+
+@app.route("/followups")
+@login_required
+def followups_lista():
+    tempo      = request.args.get("tempo", "") # vencidos, hoje, 7dias, todos
+    corredor   = request.args.get("corredor", "")
+    temperatura = request.args.get("temperatura", "")
+    
+    from datetime import date, timedelta
+    hoje = date.today().isoformat()
+    sete_dias = (date.today() + timedelta(days=7)).isoformat()
+    
+    query = MatchPreditivo.query.filter(
+        MatchPreditivo.data_proxima_acao.isnot(None),
+        MatchPreditivo.data_proxima_acao != ""
+    )
+    
+    if tempo == "vencidos":
+        query = query.filter(MatchPreditivo.data_proxima_acao < hoje, ~MatchPreditivo.status.in_(["Fechado", "Descartado"]))
+    elif tempo == "hoje":
+        query = query.filter(MatchPreditivo.data_proxima_acao == hoje)
+    elif tempo == "7dias":
+        query = query.filter(MatchPreditivo.data_proxima_acao >= hoje, MatchPreditivo.data_proxima_acao <= sete_dias)
+    
+    if corredor:
+        query = query.filter(MatchPreditivo.corredor == corredor)
+    if temperatura:
+        query = query.filter(MatchPreditivo.temperatura == temperatura)
+        
+    followups = query.order_by(MatchPreditivo.data_proxima_acao.asc()).all()
+    
+    return render_template(
+        "followups.html",
+        followups=followups,
+        hoje=hoje,
+        corredores=Config.CORREDORES,
+        filtros=dict(tempo=tempo, corredor=corredor, temperatura=temperatura)
+    )
+
+
+@app.route("/metricas/exportar")
+@login_required
+def exportar_metricas():
+    from radar.metricas import calcular_metricas_por_corredor
+    corredores_met = calcular_metricas_por_corredor()
+    
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow([
+        "corredor", "matches", "prospeccoes", "respostas", "negociacoes", "fechados", "taxa_resposta", "taxa_fechamento"
+    ])
+    
+    for c in corredores_met:
+        writer.writerow([
+            c["corredor"], c["matches"], c["prospeccoes"], c["respostas"],
+            c["negociacoes"], c["fechados"], c["taxa_resposta"], c["taxa_fechamento"]
+        ])
+        
+    output.seek(0)
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=metricas_conversao.csv"},
+    )
+
+
+@app.route("/followups/exportar")
+@login_required
+def exportar_followups():
+    query = MatchPreditivo.query.filter(
+        MatchPreditivo.data_proxima_acao.isnot(None),
+        MatchPreditivo.data_proxima_acao != ""
+    )
+    followups = query.order_by(MatchPreditivo.data_proxima_acao.asc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow([
+        "data_proxima_acao", "corredor", "embarcador", "transportadora", "canal", "status", "resultado", "temperatura", "observacao"
+    ])
+    
+    for f in followups:
+        canal = "WhatsApp"
+        ultimo_log = ProspeccaoLog.query.filter_by(match_id=f.id).order_by(ProspeccaoLog.created_at.desc()).first()
+        if ultimo_log:
+            canal = ultimo_log.canal
+            
+        writer.writerow([
+            f.data_proxima_acao, f.corredor,
+            f.embarcador.razao_social or f.embarcador.nome_fantasia,
+            f.transportadora.razao_social or f.transportadora.nome_rntrc,
+            canal, f.status, f.resultado_ultimo or "", f.temperatura, f.notas or ""
+        ])
+        
+    output.seek(0)
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=followups.csv"},
     )
 
 

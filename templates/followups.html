@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Agenda de Follow-ups — WiNS Hub Log{% endblock %}
+
+{% block content %}
+
+{# ── Barra de filtros ─────────────────────────────────────────────────────── #}
+<div class="filter-bar p-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-6 col-md-3">
+      <label class="form-label small text-muted mb-1">Período de Ação</label>
+      <select name="tempo" class="form-select form-select-sm">
+        <option value="">Todos períodos</option>
+        <option value="vencidos" {% if filtros.tempo == 'vencidos' %}selected{% endif %}>Vencidos (Ativos)</option>
+        <option value="hoje" {% if filtros.tempo == 'hoje' %}selected{% endif %}>Hoje</option>
+        <option value="7dias" {% if filtros.tempo == '7dias' %}selected{% endif %}>Próximos 7 dias</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label small text-muted mb-1">Corredor</label>
+      <select name="corredor" class="form-select form-select-sm">
+        <option value="">Todos corredores</option>
+        {% for nome in corredores %}
+          <option value="{{ nome }}" {% if filtros.corredor == nome %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label small text-muted mb-1">Temperatura</label>
+      <select name="temperatura" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        <option value="Frio" {% if filtros.temperatura == 'Frio' %}selected{% endif %}>Frio</option>
+        <option value="Morno" {% if filtros.temperatura == 'Morno' %}selected{% endif %}>Morno</option>
+        <option value="Quente" {% if filtros.temperatura == 'Quente' %}selected{% endif %}>Quente</option>
+        <option value="Fechado" {% if filtros.temperatura == 'Fechado' %}selected{% endif %}>Fechado</option>
+        <option value="Perdido" {% if filtros.temperatura == 'Perdido' %}selected{% endif %}>Perdido</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-3 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+        <i class="bi bi-funnel"></i> Filtrar Agenda
+      </button>
+      <a href="/followups" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-x"></i>
+      </a>
+    </div>
+  </form>
+</div>
+
+{# ── Toolbar: contagem / exportar ─────────────────────────────────────────── #}
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <div class="text-muted small">
+    Mostrando <strong class="text-white">{{ followups | length }}</strong> ações comerciais agendadas
+  </div>
+  <a href="/followups/exportar" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-download me-1"></i> Exportar Agenda (CSV)
+  </a>
+</div>
+
+{# ── Tabela de Follow-ups ─────────────────────────────────────────────────── #}
+{% if followups %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle mb-0">
+    <thead style="background: #1e293b; position:sticky; top:0; z-index:1;">
+      <tr>
+        <th>Próxima Ação</th>
+        <th>Corredor</th>
+        <th>Embarcador (Demanda)</th>
+        <th>Transportadora (Oferta)</th>
+        <th>Próxima Ação Planejada</th>
+        <th>Temperatura</th>
+        <th>Resultado Último</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in followups %}
+      {% set vencido = f.data_proxima_acao < hoje and f.status not in ['Fechado', 'Descartado'] %}
+      <tr>
+        <td>
+          <span class="badge {{ 'bg-danger animate-pulse' if vencido else 'bg-secondary' }}" style="font-size:0.75rem;">
+            {{ f.data_proxima_acao }}
+          </span>
+          {% if vencido %}<div class="text-danger small mt-1" style="font-size:0.62rem; font-weight:600;"><i class="bi bi-exclamation-triangle"></i> VENCIDO</div>{% endif %}
+        </td>
+        <td>
+          <span class="badge bg-secondary" style="font-size:0.7rem;">{{ f.corredor }}</span>
+        </td>
+        <td>
+          <div class="fw-semibold text-white small" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+               title="{{ f.embarcador.razao_social or f.embarcador.nome_fantasia }}">
+            {{ f.embarcador.razao_social or f.embarcador.nome_fantasia }}
+          </div>
+          <small class="text-muted">{{ f.cidade_destino }}/{{ f.uf_destino }}</small>
+        </td>
+        <td>
+          <div class="fw-semibold text-white small" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+               title="{{ f.transportadora.razao_social or f.transportadora.nome_rntrc }}">
+            {{ f.transportadora.razao_social or f.transportadora.nome_rntrc }}
+          </div>
+          <small class="text-muted">{{ f.cidade_origem }}/{{ f.uf_origem }}</small>
+        </td>
+        <td>
+          <div class="text-light fw-bold small">{{ f.proxima_acao }}</div>
+          <div class="text-muted small" style="font-size: 0.72rem;">Status Match: <strong class="text-warning">{{ f.status }}</strong></div>
+        </td>
+        <td>
+          <span class="badge badge-temp-{{ f.temperatura | lower }}">
+            {{ f.temperatura }}
+          </span>
+        </td>
+        <td>
+          <span class="text-light small">{{ f.resultado_ultimo or '—' }}</span>
+        </td>
+        <td>
+          <a href="/matches?corredor={{ f.corredor }}&status={{ f.status }}" class="btn btn-sm btn-outline-warning py-0 px-2">
+            <i class="bi bi-pencil-square"></i> Negociar Match
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-calendar-check" style="font-size:2rem"></i>
+  <p class="mt-2">Nenhum follow-up comercial encontrado para os filtros selecionados.</p>
+</div>
+{% endif %}
+
+{% endblock %}

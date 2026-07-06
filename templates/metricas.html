@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Métricas Comerciais — WiNS Hub Log{% endblock %}
+
+{% block content %}
+
+{# ── Cards principais de estatísticas e taxas ─────────────────────────────── #}
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="text-muted small mb-1">Total de Matches</div>
+      <div class="stat-num text-white">{{ stats.total_matches }}</div>
+      <div class="text-muted" style="font-size:0.75rem">Alta prioridade: <strong class="text-danger">{{ stats.alta_prioridade }}</strong></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="text-muted small mb-1">Prospecções Iniciadas</div>
+      <div class="stat-num text-info">{{ stats.total_prosp }}</div>
+      <div class="text-muted" style="font-size:0.75rem">Enviadas manually: <strong>{{ stats.enviadas_manualmente }}</strong></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="text-muted small mb-1">Respostas & Negociações</div>
+      <div class="stat-num text-warning">{{ stats.respostas }} / {{ stats.negociacoes }}</div>
+      <div class="text-muted" style="font-size:0.75rem">Contatos quentes ativos</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="text-muted small mb-1">Fechados vs Perdidos</div>
+      <div class="stat-num text-success">{{ stats.fechados }} <span class="text-muted" style="font-size:1.2rem">/ {{ stats.perdidos }}</span></div>
+      <div class="text-muted" style="font-size:0.75rem">Cargas geradas com sucesso</div>
+    </div>
+  </div>
+</div>
+
+{# ── Cards de taxas de conversão ──────────────────────────────────────────── #}
+<div class="row g-2 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="stat-card p-3 border border-primary text-center">
+      <div class="text-primary small fw-bold mb-1"><i class="bi bi-chat-dots me-1"></i>Taxa de Resposta</div>
+      <div class="display-6 fw-bold text-white">{{ stats.taxa_resposta }}%</div>
+      <div class="text-muted small">Respostas sobre prospecções enviadas</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="stat-card p-3 border border-warning text-center">
+      <div class="text-warning small fw-bold mb-1"><i class="bi bi-briefcase me-1"></i>Taxa de Negociação</div>
+      <div class="display-6 fw-bold text-white">{{ stats.taxa_negociacao }}%</div>
+      <div class="text-muted small">Matches ativos sobre enviados</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="stat-card p-3 border border-success text-center">
+      <div class="text-success small fw-bold mb-1"><i class="bi bi-check-circle me-1"></i>Taxa de Fechamento</div>
+      <div class="display-6 fw-bold text-white">{{ stats.taxa_fechamento }}%</div>
+      <div class="text-muted small">Sucesso comercial sobre enviados</div>
+    </div>
+  </div>
+</div>
+
+{# ── Exportações e Ações ─────────────────────────────────────────────────── #}
+<div class="d-flex justify-content-end align-items-center mb-3 gap-2">
+  <a href="/metricas/exportar" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-download me-1"></i> Exportar Métricas (CSV)
+  </a>
+</div>
+
+<div class="row g-3 mb-4">
+  {# Seção A: Conversão por Corredor #}
+  <div class="col-12 col-md-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white fw-bold py-2">
+        <i class="bi bi-signpost-split me-1 text-warning"></i>Conversão por Corredor
+      </div>
+      <div class="card-body p-2">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead>
+              <tr class="text-muted" style="font-size:0.75rem;">
+                <th>Corredor</th>
+                <th class="text-center">Matches</th>
+                <th class="text-center">Prosp.</th>
+                <th class="text-center">Resp.</th>
+                <th class="text-center">Fech.</th>
+                <th class="text-end">Conversão</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in por_corredor %}
+              <tr style="font-size:0.8rem;">
+                <td class="text-white fw-semibold">{{ c.corredor }}</td>
+                <td class="text-center">{{ c.matches }}</td>
+                <td class="text-center">{{ c.prospeccoes }}</td>
+                <td class="text-center text-warning">{{ c.respostas }}</td>
+                <td class="text-center text-success">{{ c.fechados }}</td>
+                <td class="text-end text-white fw-bold">{{ c.taxa_fechamento }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Seção B: Conversão por Setor #}
+  <div class="col-12 col-md-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white fw-bold py-2">
+        <i class="bi bi-tags me-1 text-warning"></i>Conversão por Setor
+      </div>
+      <div class="card-body p-2">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead>
+              <tr class="text-muted" style="font-size:0.75rem;">
+                <th>Setor Predito</th>
+                <th class="text-center">Matches</th>
+                <th class="text-center">Prosp.</th>
+                <th class="text-center">Resp.</th>
+                <th class="text-center">Fech.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in por_setor %}
+              <tr style="font-size:0.8rem;">
+                <td class="text-white fw-semibold">{{ s.setor }}</td>
+                <td class="text-center">{{ s.matches }}</td>
+                <td class="text-center">{{ s.prospecções }}</td>
+                <td class="text-center text-warning">{{ s.respostas }}</td>
+                <td class="text-center text-success">{{ s.fechados }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  {# Seção C: Conversão por Canal #}
+  <div class="col-12 col-md-4">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white fw-bold py-2">
+        <i class="bi bi-telephone me-1 text-warning"></i>Conversão por Canal
+      </div>
+      <div class="card-body p-2">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead>
+              <tr class="text-muted" style="font-size:0.75rem;">
+                <th>Canal</th>
+                <th class="text-center">Total</th>
+                <th class="text-center">Respostas</th>
+                <th class="text-end">Taxa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for cn in por_canal %}
+              <tr style="font-size:0.8rem;">
+                <td class="text-white"><i class="bi bi-{{ 'whatsapp text-success' if cn.canal == 'WhatsApp' else ('envelope text-light' if cn.canal == 'E-mail' else 'telephone text-info') }} me-1"></i>{{ cn.canal }}</td>
+                <td class="text-center">{{ cn.total }}</td>
+                <td class="text-center">{{ cn.respostas }}</td>
+                <td class="text-end text-white fw-bold">{{ cn.taxa_resposta }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Seção D: Próximas Ações / Follow-ups #}
+  <div class="col-12 col-md-8">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header bg-transparent border-secondary text-white fw-bold py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-alarm me-1 text-warning"></i>Próximos Follow-ups (Ativos)</span>
+        <a href="/followups" class="btn btn-xs btn-outline-warning py-0 px-2" style="font-size:0.7rem;">Ver todos</a>
+      </div>
+      <div class="card-body p-2">
+        {% if followups %}
+        <div class="table-responsive" style="max-height: 250px; overflow-y:auto;">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead>
+              <tr class="text-muted" style="font-size:0.75rem;">
+                <th>Data</th>
+                <th>Corredor</th>
+                <th>Embarcador / Transportadora</th>
+                <th>Próxima Ação</th>
+                <th>Responsável</th>
+                <th class="text-end">Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in followups %}
+              {% set vencido = f.data_proxima_acao < hoje %}
+              <tr style="font-size:0.78rem;">
+                <td>
+                  <span class="badge {{ 'bg-danger' if vencido else 'bg-secondary' }}" style="font-size: 0.7rem;">
+                    {{ f.data_proxima_acao }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge bg-secondary" style="font-size: 0.65rem;">{{ f.corredor }}</span>
+                </td>
+                <td>
+                  <div class="fw-semibold text-white">{{ f.embarcador.razao_social or f.embarcador.nome_fantasia }}</div>
+                  <div class="text-muted" style="font-size: 0.7rem;">Transp: {{ f.transportadora.razao_social or f.transportadora.nome_rntrc }}</div>
+                </td>
+                <td>
+                  <span class="text-light">{{ f.proxima_acao }}</span>
+                  <span class="badge badge-temp-{{ f.temperatura | lower }} ms-1" style="font-size:0.6rem;">{{ f.temperatura }}</span>
+                </td>
+                <td class="text-muted">Comercial</td>
+                <td class="text-end">
+                  <a href="/matches?corredor={{ f.corredor }}&status={{ f.status }}" class="btn btn-xs btn-outline-secondary py-0 px-2">
+                    <i class="bi bi-arrow-right"></i>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted small">
+          Nenhum follow-up agendado pendente.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

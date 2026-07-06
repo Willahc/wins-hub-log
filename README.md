@@ -110,3 +110,28 @@ DATABASE_URL=sqlite:///local.db
 
 Não subir `.env`, `local.db`, backups ou exports para o GitHub.
 
+
+## Cadência Comercial e Métricas
+
+### Como registrar resultado de contato:
+1. Abra a tela de **Matches Preditivos**.
+2. Clique no ícone de lápis para abrir o offcanvas de negociação comercial.
+3. No card de **Prospecção Assistida & Cadência**, preencha o formulário de log manual:
+   - Selecione o destinatário (Embarcador ou Transportadora) e o canal de contato (WhatsApp, Ligação, E-mail, Outro).
+   - Registre o **Resultado do Contato** comercial (ex: "Pediu cotação", "Respondeu").
+   - Atribua a **Temperatura** do Lead (Quente, Morno, Frio, Fechado, Perdido) para priorização.
+4. Clique em **Registrar Ação Comercial**. O status do match será atualizado e o histórico comercial ficará salvo no log permanente.
+
+### Como definir próxima ação:
+Ao registrar a ação comercial, defina também a próxima atividade:
+1. Digite a descrição da atividade planejada no campo **Próxima ação** (ex: "Enviar cotação de retorno").
+2. Defina a data da atividade no campo **Data próxima ação**.
+3. Ao salvar, se a data de ação expirar sem a resolução da tarefa, um alerta vermelho piscante indicará **VENCIDA** na tabela de Matches.
+
+### Onde ver follow-ups:
+Acesse a tela de **Follow-ups** (ou pelo menu superior ou através do atalho em Métricas) para visualizar a agenda de tarefas comerciais estruturada por período (Vencidos, Hoje, Próximos 7 dias).
+
+### Onde ver métricas de conversão:
+Acesse a tela de **Métricas** no menu superior para acompanhar a taxa de resposta, taxa de negociação e taxa de fechamento consolidada por corredor, setor industrial do embarcador e canal de abordagem comercial.
+
+

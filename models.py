@@ -134,6 +134,13 @@ class MatchPreditivo(db.Model):
     justificativa     = db.Column(db.Text)
     status            = db.Column(db.String(20), default="Sugerido", index=True)
     notas             = db.Column(db.Text)
+    
+    # Campos de Cadência Comercial
+    temperatura       = db.Column(db.String(20), default="Frio", index=True)
+    proxima_acao      = db.Column(db.String(200))
+    data_proxima_acao = db.Column(db.String(10), index=True)
+    resultado_ultimo  = db.Column(db.String(50))
+    
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at        = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -158,6 +165,14 @@ class ProspeccaoLog(db.Model):
     mensagem             = db.Column(db.Text)
     status               = db.Column(db.String(20), nullable=False)
     observacao           = db.Column(db.Text)
+    
+    # Campos de Cadência Comercial
+    proxima_acao         = db.Column(db.String(200))
+    data_proxima_acao    = db.Column(db.String(10))
+    resultado            = db.Column(db.String(50))
+    responsavel          = db.Column(db.String(100))
+    temperatura          = db.Column(db.String(20))
+    
     created_at           = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at           = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

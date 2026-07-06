@@ -150,13 +150,32 @@
               {{ m.prioridade }}
             </span>
           </div>
-          <div class="text-muted small" style="font-size: 0.72rem;">
+          <div class="text-muted small mt-1" style="font-size: 0.72rem;">
             Prospecção: <span id="prop-total-{{ m.id }}">{{ m.prospeccao_total }}</span> ações
             <div id="prop-meta-{{ m.id }}" style="font-size:0.68rem; {% if m.prospeccao_total == 0 %}display:none;{% endif %}">
               Última: <strong class="text-light" id="prop-status-{{ m.id }}">{{ m.prospeccao_ultimo_status }}</strong> 
               (<span id="prop-data-{{ m.id }}">{{ m.prospeccao_ultima_data }}</span>)
             </div>
           </div>
+          
+          {# Cadência Comercial do Match (Tarefa 6) #}
+          {% if m.data_proxima_acao %}
+            {% set vencido = m.data_proxima_acao < hoje and m.status not in ['Fechado', 'Descartado'] %}
+            <div class="mt-1 p-1 bg-dark rounded border border-secondary" style="font-size: 0.7rem; max-width: 200px;">
+              <span class="badge badge-temp-{{ m.temperatura | lower }}" style="font-size:0.6rem;">{{ m.temperatura }}</span>
+              <div class="text-light mt-1 text-truncate">
+                Ação: <strong>{{ m.proxima_acao or 'Sem ação' }}</strong>
+              </div>
+              <div class="mt-1">
+                Data: <span class="badge {{ 'bg-danger animate-pulse' if vencido else 'bg-secondary' }}" style="font-size:0.62rem;">
+                  {{ m.data_proxima_acao }}
+                </span>
+                {% if vencido %}
+                  <span class="text-danger fw-bold" style="font-size:0.62rem; display:inline-block;"><i class="bi bi-exclamation-triangle"></i> VENCIDA</span>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
         </td>
         <td>
           <span class="badge bg-secondary" style="font-size:0.7rem;">{{ m.corredor }}</span>
@@ -240,10 +259,10 @@
             </div>
           </div>
 
-          {# Prospecção Assistida #}
+          {# Prospecção Assistida & Cadência #}
           <div class="card bg-dark border-info mb-3">
             <div class="card-header bg-transparent border-secondary text-info fw-bold py-2">
-              <i class="bi bi-chat-left-text me-1"></i>Prospecção Assistida
+              <i class="bi bi-chat-left-text me-1"></i>Prospecção Assistida & Cadência
             </div>
             <div class="card-body p-2">
               <ul class="nav nav-tabs nav-justified mb-2" id="tab-prosp-{{ m.id }}" role="tablist" style="font-size: 0.75rem;">
@@ -295,7 +314,7 @@
               
               <hr class="my-2 border-secondary">
               
-              <!-- Registrar Log Manual -->
+              <!-- Registrar Log Manual / Cadência Comercial (Tarefa 5) -->
               <form id="form-log-{{ m.id }}" onsubmit="registrarLogManual(event, {{ m.id }})" class="small">
                 <div class="row g-1 mb-1">
                   <div class="col-4">
@@ -321,6 +340,42 @@
                     </select>
                   </div>
                 </div>
+                
+                <div class="row g-1 mb-1">
+                  <div class="col-6">
+                    <select name="resultado" id="log-resultado-{{ m.id }}" class="form-select form-select-xs bg-dark text-white border-secondary" style="font-size:0.72rem;">
+                      <option value="">Resultado do Contato</option>
+                      <option value="Sem resposta">Sem resposta</option>
+                      <option value="Respondeu">Respondeu</option>
+                      <option value="Pediu cotação">Pediu cotação</option>
+                      <option value="Não tem demanda agora">Sem demanda</option>
+                      <option value="Usa transportadora fixa">Transp. Fixa</option>
+                      <option value="Pediu retorno futuro">Retorno Futuro</option>
+                      <option value="Negociação aberta">Em negociação</option>
+                      <option value="Fechado">Fechado (Sucesso)</option>
+                      <option value="Perdido">Perdido</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <select name="temperatura" id="log-temperatura-{{ m.id }}" class="form-select form-select-xs bg-dark text-white border-secondary" style="font-size:0.72rem;">
+                      <option value="Frio">Temp: Frio</option>
+                      <option value="Morno">Temp: Morno</option>
+                      <option value="Quente">Temp: Quente</option>
+                      <option value="Fechado">Temp: Fechado</option>
+                      <option value="Perdido">Temp: Perdido</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="row g-1 mb-1">
+                  <div class="col-6">
+                    <input type="text" name="proxima_acao" id="log-proxima-{{ m.id }}" class="form-control form-control-xs bg-dark text-white border-secondary" placeholder="Próxima ação..." style="font-size:0.72rem;">
+                  </div>
+                  <div class="col-6">
+                    <input type="date" name="data_proxima_acao" id="log-data-proxima-{{ m.id }}" class="form-control form-control-xs bg-dark text-white border-secondary" style="font-size:0.72rem;">
+                  </div>
+                </div>
+                
                 <div class="mb-1">
                   <input type="text" name="observacao" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Observação comercial..." required style="font-size:0.75rem;">
                 </div>
@@ -413,7 +468,7 @@
 
 {% block scripts %}
 <script>
-// Carregar dados de prospecção dinamicamente ao abrir painel
+// Carregar dados de prospecção e cadência dinamicamente ao abrir painel
 async function carregarProspeccao(matchId) {
   const resp = await fetch(`/matches/${matchId}/prospeccao`);
   const data = await resp.json();
@@ -438,6 +493,20 @@ async function carregarProspeccao(matchId) {
     } else {
       waTransp.href = "#";
       waTransp.classList.add('disabled');
+    }
+    
+    // Pre-popular campos de cadência com os dados atuais do Match
+    if (data.temperatura) {
+      document.getElementById(`log-temperatura-${matchId}`).value = data.temperatura;
+    }
+    if (data.proxima_acao) {
+      document.getElementById(`log-proxima-${matchId}`).value = data.proxima_acao;
+    }
+    if (data.data_proxima_acao) {
+      document.getElementById(`log-data-proxima-${matchId}`).value = data.data_proxima_acao;
+    }
+    if (data.resultado_ultimo) {
+      document.getElementById(`log-resultado-${matchId}`).value = data.resultado_ultimo;
     }
     
     renderizarHistorico(matchId, data.logs);
@@ -490,8 +559,6 @@ async function logarAcao(matchId, canal, destTipo, status) {
   const d = await r.json();
   if (d.ok) {
     carregarProspeccao(matchId);
-    
-    // Atualizar tabela principal
     atualizarTabelaProspeccao(matchId, status);
   }
 }
@@ -512,8 +579,13 @@ async function registrarLogManual(e, matchId) {
     const status = data.get('status');
     form.reset();
     carregarProspeccao(matchId);
-    
     atualizarTabelaProspeccao(matchId, status);
+    
+    // Mensagem de sucesso
+    alert("Ação comercial e cadência de follow-up registradas!");
+    
+    // Opcional: recarregar a página para aplicar o alerta visual de data vencida ou badge de temperatura na tabela principal
+    window.location.reload();
   }
 }
 
@@ -556,6 +628,9 @@ async function salvarCRMMatch(e, id) {
     
     const oc = bootstrap.Offcanvas.getInstance(document.getElementById(`painel-${id}`));
     if (oc) oc.hide();
+    
+    // Recarregar para sincronizar temperaturas ou follow-up dates no CRM se alterados
+    window.location.reload();
   }
 }
 </script>

@@ -52,6 +52,14 @@
     .badge-fechado    { background: #10b981; color: #fff; }
     .badge-descartado { background: #ef4444; color: #fff; }
 
+    /* Badges de Temperatura de Lead */
+    .badge-temp-frio    { background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6; }
+    .badge-temp-morno   { background: #78350f; color: #fde68a; border: 1px solid #d97706; }
+    .badge-temp-quente  { background: #7f1d1d; color: #fca5a5; border: 1px solid #ef4444; }
+    .badge-temp-fechado { background: #064e3b; color: #a7f3d0; border: 1px solid #10b981; }
+    .badge-temp-perdido { background: #374151; color: #d1d5db; border: 1px solid #6b7280; }
+
+
 
     /* Filtros */
     .filter-bar { background: var(--wins-card); border-radius: 10px; }
@@ -86,6 +94,12 @@
       </a>
       <a href="/prospeccao" class="btn btn-sm text-decoration-none {% if request.path == '/prospeccao' %}text-warning fw-bold{% else %}text-light{% endif %}">
         <i class="bi bi-chat-left-text me-1"></i>Histórico Prospecção
+      </a>
+      <a href="/metricas" class="btn btn-sm text-decoration-none {% if request.path == '/metricas' %}text-warning fw-bold{% else %}text-light{% endif %}">
+        <i class="bi bi-bar-chart-line me-1"></i>Métricas
+      </a>
+      <a href="/followups" class="btn btn-sm text-decoration-none {% if request.path == '/followups' %}text-warning fw-bold{% else %}text-light{% endif %}">
+        <i class="bi bi-calendar-event me-1"></i>Follow-ups
       </a>
     {% endif %}
   </div>
