@@ -135,3 +135,36 @@ Acesse a tela de **Follow-ups** (ou pelo menu superior ou através do atalho em 
 Acesse a tela de **Métricas** no menu superior para acompanhar a taxa de resposta, taxa de negociação e taxa de fechamento consolidada por corredor, setor industrial do embarcador e canal de abordagem comercial.
 
 
+## Segurança do banco local
+
+O banco local SQLite (`local.db`) armazena os dados comerciais ativos (notas, CRM, histórico de prospecção, datas de follow-up). Por isso, **nunca** apague o arquivo `local.db` em produção e garanta que ele esteja listado no `.gitignore`.
+
+### 1. Criar Backup Manual
+Para gerar um backup com data e hora atual na pasta `backups/`:
+```bash
+python scripts/backup_db.py
+```
+O script mantém automaticamente apenas os últimos 20 backups para otimizar espaço em disco.
+
+### 2. Restaurar um Backup
+Para restaurar um backup anterior, execute o script passando o caminho do arquivo desejado:
+```bash
+python scripts/restore_db.py backups/local_YYYYMMDD_HHMMSS.db
+```
+*Nota: Um backup preventivo do estado atual do banco é criado de forma automática antes da restauração.*
+
+### 3. Verificar Contagem de Registros e Tabelas
+Para visualizar um relatório simples de integridade e contagem de registros principais nas tabelas:
+```bash
+python scripts/check_db.py
+```
+
+### 4. Aplicar Migrações de Schema de Forma Segura
+Caso o código sofra atualizações que alterem a estrutura das tabelas em `models.py`, você pode rodar as migrações automáticas sem risco de perda de dados:
+```bash
+python scripts/migrate_sqlite.py
+```
+*Nota: Este script faz uma cópia preventiva de segurança do banco antes de executar os comandos `ALTER TABLE`.*
+
+
+
