@@ -56,3 +56,34 @@ def gerar_mensagem_transportadora(match):
 
 def gerar_assunto_email(match):
     return f"Oportunidade de Carga de Retorno - Corredor {match.corredor} - WiNS Hub Log"
+
+def registrar_evento_sistema(session, match, status_antigo, status_novo, observacao_extra=None):
+    if status_antigo == status_novo:
+        return None
+        
+    from models import ProspeccaoLog
+    
+    emb_nome = match.embarcador.razao_social or match.embarcador.nome_fantasia or "Embarcador"
+    transp_nome = match.transportadora.razao_social or match.transportadora.nome_rntrc or "Transportadora"
+    dest_nome = f"{emb_nome} + {transp_nome}"
+    
+    log = ProspeccaoLog(
+        match_id=match.id,
+        canal="Sistema",
+        destinatario_tipo="Match",
+        destinatario_nome=dest_nome[:150],
+        destinatario_contato="",
+        mensagem=f"Status alterado: {status_antigo} → {status_novo}",
+        status="Gerada",
+        observacao=observacao_extra or "Alteracao automatica registrada pelo Kanban",
+        resultado=match.resultado_ultimo,
+        temperatura=match.temperatura,
+        proxima_acao=match.proxima_acao,
+        data_proxima_acao=match.data_proxima_acao,
+        responsavel="Sistema"
+    )
+    
+    session.add(log)
+    session.commit()
+    return log
+

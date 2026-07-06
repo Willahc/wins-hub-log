@@ -16,8 +16,8 @@
 .kanban-column {
   background: var(--wins-card);
   border-radius: 8px;
-  min-width: 285px;
-  max-width: 285px;
+  min-width: 290px;
+  max-width: 290px;
   display: flex;
   flex-direction: column;
   max-height: 80vh;
@@ -181,13 +181,81 @@
         </div>
         <div class="text-muted small mb-1" style="font-size:0.7rem;"><i class="bi bi-arrow-right-short text-warning"></i> {{ m.embarcador.razao_social or m.embarcador.nome_fantasia }}</div>
         
-        <div class="d-flex justify-content-between text-muted mb-1" style="font-size: 0.65rem;">
+        <div class="d-flex justify-content-between text-muted mb-2" style="font-size: 0.65rem;">
           <span>{{ m.corredor }}</span>
           <span>{{ m.cidade_destino }}/{{ m.uf_destino }}</span>
         </div>
-        
-        <div class="text-light small text-truncate mb-2" style="font-size:0.68rem; background:#1e293b; padding:2px 4px; border-radius:3px;">
-          Setor: {{ m.embarcador.setor_predito or 'Geral' }}
+
+        {# Indicador Visual de Contato (Tarefa 10) #}
+        <div class="mb-2">
+          {% if m.status == 'Fechado' %}
+            <span class="badge bg-success w-100 text-center py-1" style="font-size:0.65rem;"><i class="bi bi-check-circle-fill me-1"></i>Fechado</span>
+          {% elif m.status == 'Perdido' %}
+            <span class="badge bg-danger w-100 text-center py-1" style="font-size:0.65rem;"><i class="bi bi-x-circle-fill me-1"></i>Perdido</span>
+          {% elif m.status == 'Negociando' %}
+            <span class="badge bg-warning text-dark w-100 text-center py-1" style="font-weight:600; font-size:0.65rem;"><i class="bi bi-briefcase-fill me-1"></i>Em negociação</span>
+          {% elif m.prospeccao_ultimo_status == 'Respondida' or m.resultado_ultimo in ['Respondeu', 'Pediu cotação', 'Pediu retorno futuro', 'Negociação aberta'] %}
+            <span class="badge bg-info text-dark w-100 text-center py-1" style="font-weight:600; font-size:0.65rem;"><i class="bi bi-chat-left-dots-fill me-1"></i>Respondeu</span>
+          {% elif m.prospeccao_total > 0 %}
+            <span class="badge bg-primary w-100 text-center py-1" style="font-size:0.65rem;"><i class="bi bi-telephone-outbound-fill me-1"></i>Contato iniciado</span>
+          {% else %}
+            <span class="badge bg-secondary w-100 text-center py-1" style="font-size:0.65rem;"><i class="bi bi-question-circle me-1"></i>Sem contato registrado</span>
+          {% endif %}
+        </div>
+
+        {# Ações rápidas de contato direto (Tarefa 6) #}
+        <div class="d-flex flex-column gap-1 p-2 bg-dark rounded border border-secondary mb-2" style="font-size:0.68rem;">
+          <div class="text-white fw-bold" style="font-size:0.68rem;"><i class="bi bi-lightning-fill text-warning me-1"></i>Abordagem Direta</div>
+          
+          {# Embarcador #}
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted" style="font-size:0.62rem;">Embarcador:</span>
+            <div class="d-flex gap-1">
+              {% if m.link_wa_emb %}
+                <a href="{{ m.link_wa_emb }}" target="_blank" class="btn btn-xs btn-outline-success py-0 px-1" 
+                   onclick="registrarContatoRapido({{ m.id }}, 'WhatsApp', 'Embarcador', '{{ m.embarcador.telefone }}')"
+                   style="font-size: 0.62rem;" title="WhatsApp Embarcador">
+                  <i class="bi bi-whatsapp"></i> WA
+                </a>
+              {% endif %}
+              {% if m.embarcador.email %}
+                <a href="mailto:{{ m.embarcador.email }}?subject={{ m.assunto_email | urlencode }}&body={{ m.corpo_email_emb | urlencode }}" 
+                   class="btn btn-xs btn-outline-info py-0 px-1" 
+                   onclick="registrarContatoRapido({{ m.id }}, 'E-mail', 'Embarcador', '{{ m.embarcador.email }}')"
+                   style="font-size: 0.62rem;" title="E-mail Embarcador">
+                  <i class="bi bi-envelope"></i> Mail
+                </a>
+              {% endif %}
+              {% if not m.link_wa_emb and not m.embarcador.email %}
+                <span class="text-muted" style="font-size: 0.6rem;">sem dados</span>
+              {% endif %}
+            </div>
+          </div>
+          
+          {# Transportadora #}
+          <div class="d-flex justify-content-between align-items-center mt-1">
+            <span class="text-muted" style="font-size:0.62rem;">Transp.:</span>
+            <div class="d-flex gap-1">
+              {% if m.link_wa_transp %}
+                <a href="{{ m.link_wa_transp }}" target="_blank" class="btn btn-xs btn-outline-success py-0 px-1" 
+                   onclick="registrarContatoRapido({{ m.id }}, 'WhatsApp', 'Transportadora', '{{ m.transportadora.telefone }}')"
+                   style="font-size: 0.62rem;" title="WhatsApp Transportadora">
+                  <i class="bi bi-whatsapp"></i> WA
+                </a>
+              {% endif %}
+              {% if m.transportadora.email %}
+                <a href="mailto:{{ m.transportadora.email }}?subject={{ m.assunto_email | urlencode }}&body={{ m.corpo_email_transp | urlencode }}" 
+                   class="btn btn-xs btn-outline-info py-0 px-1" 
+                   onclick="registrarContatoRapido({{ m.id }}, 'E-mail', 'Transportadora', '{{ m.transportadora.email }}')"
+                   style="font-size: 0.62rem;" title="E-mail Transportadora">
+                  <i class="bi bi-envelope"></i> Mail
+                </a>
+              {% endif %}
+              {% if not m.link_wa_transp and not m.transportadora.email %}
+                <span class="text-muted" style="font-size: 0.6rem;">sem dados</span>
+              {% endif %}
+            </div>
+          </div>
         </div>
 
         {# Follow-up / Cadência no Card #}
@@ -202,15 +270,23 @@
           </div>
         {% endif %}
 
-        {# Menu rápido de status fallback (Tarefa 6) #}
+        {# Indicadores estatísticos de prospecção (Tarefa 9) #}
+        <div class="text-muted mb-2" style="font-size: 0.64rem;">
+          <i class="bi bi-activity"></i> Prospecção: <strong>{{ m.prospeccao_total }}</strong> ações
+          {% if m.prospeccao_total > 0 %}
+            <div style="font-size:0.6rem; margin-top: 1px;">Última: {{ m.prospeccao_ultimo_status }} ({{ m.prospeccao_ultima_data }})</div>
+          {% endif %}
+        </div>
+
+        {# Menu rápido de status fallback #}
         <div class="d-flex flex-wrap gap-1 border-top border-secondary pt-2 mt-2">
-          {% if col_nome != 'Validar' %}<button class="btn btn-quick-status btn-outline-info" onclick="atualizarQuickStatus({{ m.id }}, 'Validar')" title="Mover para Validar">V</button>{% endif %}
-          {% if col_nome != 'Abordar' %}<button class="btn btn-quick-status btn-outline-warning" onclick="atualizarQuickStatus({{ m.id }}, 'Abordar')" title="Mover para Abordar">A</button>{% endif %}
-          {% if col_nome != 'Em contato' %}<button class="btn btn-quick-status btn-outline-primary" onclick="atualizarQuickStatus({{ m.id }}, 'Em contato')" title="Mover para Em contato">C</button>{% endif %}
-          {% if col_nome != 'Negociando' %}<button class="btn btn-quick-status btn-outline-success" onclick="atualizarQuickStatus({{ m.id }}, 'Negociando')" title="Mover para Negociando">N</button>{% endif %}
-          {% if col_nome != 'Fechado' %}<button class="btn btn-quick-status btn-success" onclick="atualizarQuickStatus({{ m.id }}, 'Fechado')" title="Mover para Fechado"><i class="bi bi-check-lg"></i></button>{% endif %}
-          {% if col_nome != 'Perdido' %}<button class="btn btn-quick-status btn-danger" onclick="atualizarQuickStatus({{ m.id }}, 'Perdido')" title="Mover para Perdido"><i class="bi bi-x-lg"></i></button>{% endif %}
-          {% if col_nome != 'Descartado' %}<button class="btn btn-quick-status btn-outline-danger" onclick="atualizarQuickStatus({{ m.id }}, 'Descartado')" title="Mover para Descartado"><i class="bi bi-trash"></i></button>{% endif %}
+          {% if col_nome != 'Validar' %}<button class="btn btn-quick-status btn-outline-info" onclick="atualizarQuickStatus({{ m.id }}, 'Validar')" title="Validar">V</button>{% endif %}
+          {% if col_nome != 'Abordar' %}<button class="btn btn-quick-status btn-outline-warning" onclick="atualizarQuickStatus({{ m.id }}, 'Abordar')" title="Abordar">A</button>{% endif %}
+          {% if col_nome != 'Em contato' %}<button class="btn btn-quick-status btn-outline-primary" onclick="atualizarQuickStatus({{ m.id }}, 'Em contato')" title="Contato">C</button>{% endif %}
+          {% if col_nome != 'Negociando' %}<button class="btn btn-quick-status btn-outline-success" onclick="atualizarQuickStatus({{ m.id }}, 'Negociando')" title="Negociando">N</button>{% endif %}
+          {% if col_nome != 'Fechado' %}<button class="btn btn-quick-status btn-success" onclick="atualizarQuickStatus({{ m.id }}, 'Fechado')" title="Fechado"><i class="bi bi-check-lg"></i></button>{% endif %}
+          {% if col_nome != 'Perdido' %}<button class="btn btn-quick-status btn-danger" onclick="atualizarQuickStatus({{ m.id }}, 'Perdido')" title="Perdido"><i class="bi bi-x-lg"></i></button>{% endif %}
+          {% if col_nome != 'Descartado' %}<button class="btn btn-quick-status btn-outline-danger" onclick="atualizarQuickStatus({{ m.id }}, 'Descartado')" title="Descartar"><i class="bi bi-trash"></i></button>{% endif %}
         </div>
 
         {# Link de ver matches com filtro para abrir CRM offcanvas #}
@@ -227,7 +303,7 @@
   {% endfor %}
 </div>
 {% else %}
-{# Estado Vazio (Tarefa 11) #}
+{# Estado Vazio #}
 <div class="text-center py-5 text-muted border border-secondary rounded bg-dark">
   <i class="bi bi-kanban" style="font-size:3rem"></i>
   <h5 class="mt-3 text-white">Nenhum match preditivo encontrado</h5>
@@ -300,6 +376,28 @@ async function atualizarStatusMatch(matchId, status) {
   });
   const data = await resp.json();
   return data.ok;
+}
+
+// Registrar contato rápido silenciosamente em background (Tarefa 8)
+async function registrarContatoRapido(matchId, canal, destTipo, contato) {
+  const form = new FormData();
+  form.append('canal', canal);
+  form.append('destinatario_tipo', destTipo);
+  form.append('contato', contato || '');
+  form.append('mensagem', `Contato rapido via ${canal} iniciado pelo Kanban.`);
+  
+  try {
+    fetch(`/kanban/match/${matchId}/contato-rapido`, {
+      method: "POST",
+      body: form
+    }).then(resp => resp.json()).then(data => {
+      if (data.ok) {
+        console.log(`Contato rapido registrado: Log ${data.log_id}`);
+      }
+    });
+  } catch (err) {
+    console.error("Erro ao registrar contato rapido:", err);
+  }
 }
 </script>
 {% endblock %}

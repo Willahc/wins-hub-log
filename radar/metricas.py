@@ -21,11 +21,17 @@ def calcular_metricas_funil():
     alta_prioridade = MatchPreditivo.query.filter_by(prioridade="Alta").count()
     
     # Ações de prospecção
-    total_prosp = ProspeccaoLog.query.count()
-    enviadas_manualmente = ProspeccaoLog.query.filter(ProspeccaoLog.status.in_(["Enviada manualmente", "Respondida", "Sem resposta"])).count()
+    total_prosp = ProspeccaoLog.query.filter(ProspeccaoLog.canal != "Sistema").count()
+    enviadas_manualmente = ProspeccaoLog.query.filter(
+        ProspeccaoLog.status.in_(["Enviada manualmente", "Respondida", "Sem resposta"]),
+        ProspeccaoLog.canal != "Sistema"
+    ).count()
     
     # Respostas registradas
-    respostas = ProspeccaoLog.query.filter(ProspeccaoLog.status == "Respondida").count()
+    respostas = ProspeccaoLog.query.filter(
+        ProspeccaoLog.status == "Respondida",
+        ProspeccaoLog.canal != "Sistema"
+    ).count()
     
     # Negociações abertas (matches com status Negociando)
     negociacoes = MatchPreditivo.query.filter_by(status="Negociando").count()

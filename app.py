@@ -672,6 +672,8 @@ def gerar_matches():
 @login_required
 def atualizar_match_crm(match_id):
     match = MatchPreditivo.query.get_or_404(match_id)
+    status_antigo = match.status
+    
     match.status = request.form.get("status", match.status)
     match.notas  = request.form.get("notes", request.form.get("notas", match.notas))
     
@@ -681,6 +683,12 @@ def atualizar_match_crm(match_id):
     match.data_proxima_acao = request.form.get("data_proxima_acao", match.data_proxima_acao)
     
     db.session.commit()
+    
+    # Registrar auditoria se houver alteração de status
+    if status_antigo != match.status:
+        from radar.prospeccao import registrar_evento_sistema
+        registrar_evento_sistema(db.session, match, status_antigo, match.status, "Alteracao de status via formulario CRM")
+        
     return jsonify({"ok": True, "status": match.status})
 
 
@@ -1053,6 +1061,11 @@ def kanban_quadro():
         
     matches_all = query.order_by(MatchPreditivo.score_match.desc()).all()
     
+    from radar.prospeccao import (gerar_mensagem_embarcador, 
+                                  gerar_mensagem_transportadora, 
+                                  gerar_assunto_email, 
+                                  montar_link_whatsapp)
+    
     for m in matches_all:
         m.prospeccao_total = len(m.prospeccoes)
         if m.prospeccoes:
@@ -1062,6 +1075,17 @@ def kanban_quadro():
         else:
             m.prospeccao_ultimo_status = "Pendente"
             m.prospeccao_ultima_data = "—"
+            
+        # Links e mensagens rápidas
+        msg_emb = gerar_mensagem_embarcador(m)
+        msg_transp = gerar_mensagem_transportadora(m)
+        
+        m.link_wa_emb = montar_link_whatsapp(m.embarcador.telefone, msg_emb)
+        m.link_wa_transp = montar_link_whatsapp(m.transportadora.telefone, msg_transp)
+        
+        m.assunto_email = gerar_assunto_email(m)
+        m.corpo_email_emb = msg_emb
+        m.corpo_email_transp = msg_transp
             
     colunas_nomes = ["Sugerido", "Validar", "Abordar", "Em contato", "Negociando", "Fechado", "Perdido", "Descartado"]
     quadro = {c: [] for c in colunas_nomes}
@@ -1112,6 +1136,7 @@ def kanban_quadro():
 @login_required
 def atualizar_kanban_status(match_id):
     match = MatchPreditivo.query.get_or_404(match_id)
+    status_antigo = match.status
     
     if request.is_json:
         data = request.json
@@ -1139,6 +1164,12 @@ def atualizar_kanban_status(match_id):
             match.data_proxima_acao = data["data_proxima_acao"]
             
         db.session.commit()
+        
+        # Registrar auditoria se houver alteração de status
+        if status_antigo != novo_status:
+            from radar.prospeccao import registrar_evento_sistema
+            registrar_evento_sistema(db.session, match, status_antigo, novo_status)
+            
         return jsonify({"ok": True, "match_id": match.id, "status": match.status})
     except Exception as ex:
         db.session.rollback()
@@ -1166,10 +1197,21 @@ def exportar_kanban():
     writer.writerow([
         "status", "score_match", "prioridade", "corredor", "transportadora", "embarcador",
         "cidade_embarcador", "uf_embarcador", "tipo_carga", "temperatura", "proxima_acao",
-        "data_proxima_acao", "resultado_ultimo", "notas"
+        "data_proxima_acao", "resultado_ultimo", "notas",
+        "prospeccao_total", "prospeccao_ultima_acao", "prospeccao_ultimo_status", "prospeccao_ultima_data"
     ])
     
     for m in matches:
+        total_p = len(m.prospeccoes)
+        ultima_acao_p = "—"
+        ultimo_status_p = "Pendente"
+        ultima_data_p = "—"
+        if m.prospeccoes:
+            ordenados = sorted(m.prospeccoes, key=lambda x: x.created_at, reverse=True)
+            ultima_acao_p = ordenados[0].mensagem or "—"
+            ultimo_status_p = ordenados[0].status or "Pendente"
+            ultima_data_p = ordenados[0].created_at.strftime("%d/%m/%Y %H:%M")
+
         writer.writerow([
             m.status, m.score_match, m.prioridade, m.corredor,
             m.transportadora.razao_social or m.transportadora.nome_rntrc,
@@ -1177,7 +1219,8 @@ def exportar_kanban():
             m.cidade_destino, m.uf_destino,
             m.embarcador.tipo_carga_provavel or "",
             m.temperatura, m.proxima_acao or "", m.data_proxima_acao or "",
-            m.resultado_ultimo or "", m.notas or ""
+            m.resultado_ultimo or "", m.notas or "",
+            total_p, ultima_acao_p, ultimo_status_p, ultima_data_p
         ])
         
     output.seek(0)
@@ -1186,6 +1229,41 @@ def exportar_kanban():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=kanban_matches.csv"},
     )
+
+
+@app.route("/kanban/match/<int:match_id>/contato-rapido", methods=["POST"])
+@login_required
+def kanban_contato_rapido(match_id):
+    match = MatchPreditivo.query.get_or_404(match_id)
+    
+    canal = request.form.get("canal", "WhatsApp").strip()
+    dest_tipo = request.form.get("destinatario_tipo", "Embarcador").strip()
+    contato = request.form.get("contato", "").strip()
+    mensagem = request.form.get("mensagem", "").strip()
+    
+    emb_nome = match.embarcador.razao_social or match.embarcador.nome_fantasia or "Embarcador"
+    transp_nome = match.transportadora.razao_social or match.transportadora.nome_rntrc or "Transportadora"
+    dest_nome = emb_nome if dest_tipo == "Embarcador" else transp_nome
+    
+    log = ProspeccaoLog(
+        match_id=match.id,
+        canal=canal,
+        destinatario_tipo=dest_tipo,
+        destinatario_nome=dest_nome[:150],
+        destinatario_contato=contato,
+        mensagem=mensagem,
+        status="Copiada",
+        observacao="Contato rapido iniciado pelo Kanban",
+        resultado="Respondeu" if match.status == "Em contato" else match.resultado_ultimo,
+        temperatura=match.temperatura,
+        proxima_acao=match.proxima_acao,
+        data_proxima_acao=match.data_proxima_acao,
+        responsavel="Comercial"
+    )
+    
+    db.session.add(log)
+    db.session.commit()
+    return jsonify({"ok": True, "log_id": log.id})
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────

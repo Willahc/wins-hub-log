@@ -193,5 +193,25 @@ O funil comercial é composto pelas colunas:
 A movimentação de um card para **Negociando** incrementa as métricas comerciais de funil. Quando movido para **Fechado**, a taxa de fechamento consolidada é atualizada no dashboard de **Métricas**. Mover para **Perdido** ou **Descartado** fecha a oportunidade com falha, refletindo de imediato nos cards estatísticos gerais.
 
 
+## Auditoria do Kanban e Ações Rápidas
+
+Para garantir a confiabilidade dos dados e agilizar o dia a dia comercial, o Kanban foi equipado com inteligência de auditoria e atalhos rápidos.
+
+### 1. Auditoria Automática de Mudança de Status
+- Toda vez que um card de Match Preditivo é movimentado de coluna no Kanban (seja via Drag & Drop ou Botões Rápidos), ou quando o status é atualizado de dentro da página de Matches via modal de CRM, o sistema cria automaticamente uma entrada de log em **`ProspeccaoLog`**.
+- O log gerado registra o status anterior e o novo status (ex: `Status alterado: Sugerido → Validar`), salvando a data e a temperatura comercial do match.
+- **Evita duplicação**: Caso a movimentação seja para o mesmo status atual, a gravação automática é ignorada para manter o histórico conciso.
+
+### 2. Tratamento do Canal "Sistema" nas Estatísticas
+- Logs automáticos criados pelo sistema recebem a flag `canal = 'Sistema'`.
+- Visando manter a exatidão estatística de conversão, logs com canal **`Sistema`** são exibidos no histórico de auditoria do match e no histórico geral de prospecção, mas são **excluídos** do cálculo de métricas de envio e conversão. Isso impede que a taxa de resposta seja distorcida por ações administrativas automáticas.
+
+### 3. Ações Rápidas de Contato no Card
+- Cada card exibe botões rápidos de **WhatsApp (WA)** e **E-mail (Mail)** para o **Embarcador** e para a **Transportadora** (se houver dados correspondentes cadastrados).
+- Ao clicar em um atalho, o navegador abrirá o WhatsApp Web com a mensagem de abordagem logística formatada (via API do WhatsApp) ou o cliente de e-mail (mailto) preenchendo assunto e corpo automaticamente.
+- **Registro Silencioso**: Em segundo plano (sem travar a ação do usuário), o clique dispara uma chamada assíncrona para a rota `/kanban/match/<id>/contato-rapido` que insere o log de contato imediato (`status = 'Copiada'`) para registrar a iniciativa comercial na cadência.
+
+
+
 
 
