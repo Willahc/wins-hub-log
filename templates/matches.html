@@ -117,6 +117,11 @@
         <i class="bi bi-cpu me-1"></i> Gerar Matches Preditivos
       </button>
     </form>
+    {# Visualizar em Kanban #}
+    <a href="/kanban?corredor={{ filtros.corredor }}&prioridade={{ filtros.prioridade }}&status={{ filtros.status }}"
+       class="btn btn-sm btn-outline-info font-weight-bold" style="font-weight: 600;">
+      <i class="bi bi-kanban me-1"></i> Visualizar em Kanban
+    </a>
     {# Exportar CSV #}
     <a href="/matches/exportar?corredor={{ filtros.corredor }}&status={{ filtros.status }}&prioridade={{ filtros.prioridade }}"
        class="btn btn-sm btn-outline-secondary">

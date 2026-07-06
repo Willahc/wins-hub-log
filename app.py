@@ -631,7 +631,7 @@ def matches_lista():
     }
 
     # Opções de status e labels
-    status_list = ["Sugerido", "Validar", "Abordar", "Em contato", "Negociando", "Fechado", "Descartado"]
+    status_list = ["Sugerido", "Validar", "Abordar", "Em contato", "Negociando", "Fechado", "Perdido", "Descartado"]
     status_labels = {
         "Sugerido":   ("Sugerido",   "secondary"),
         "Validar":    ("Validar",    "info"),
@@ -639,6 +639,7 @@ def matches_lista():
         "Em contato": ("Em contato", "primary"),
         "Negociando": ("Negociando", "success"),
         "Fechado":    ("Fechado",    "success"),
+        "Perdido":    ("Perdido",    "danger"),
         "Descartado": ("Descartado", "danger")
     }
 
@@ -998,6 +999,192 @@ def exportar_followups():
         output.getvalue().encode("utf-8-sig"),
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=followups.csv"},
+    )
+
+
+
+# ─── Kanban Comercial de Matches ─────────────────────────────────────────────
+
+@app.route("/kanban")
+@login_required
+def kanban_quadro():
+    corredor      = request.args.get("corredor", "")
+    prioridade    = request.args.get("prioridade", "")
+    temperatura   = request.args.get("temperatura", "")
+    status_filtro = request.args.get("status", "")
+    min_score     = request.args.get("min_score", "").strip()
+    busca         = request.args.get("q", "").strip()
+    vencido_filtro = request.args.get("vencido", "")
+    
+    from datetime import date
+    hoje = date.today().isoformat()
+    
+    query = MatchPreditivo.query
+    
+    if corredor:   query = query.filter_by(corredor=corredor)
+    if prioridade: query = query.filter_by(prioridade=prioridade)
+    if temperatura: query = query.filter_by(temperatura=temperatura)
+    if status_filtro: query = query.filter_by(status=status_filtro)
+    if min_score:
+        try:
+            query = query.filter(MatchPreditivo.score_match >= float(min_score))
+        except ValueError:
+            pass
+            
+    if vencido_filtro == "1":
+        query = query.filter(
+            MatchPreditivo.data_proxima_acao < hoje,
+            MatchPreditivo.data_proxima_acao.isnot(None),
+            MatchPreditivo.data_proxima_acao != "",
+            ~MatchPreditivo.status.in_(["Fechado", "Descartado", "Perdido"])
+        )
+        
+    if busca:
+        like = f"%{busca}%"
+        from models import Transportadora, EmbarcadorProvavel
+        query = query.join(Transportadora).join(EmbarcadorProvavel).filter(
+            db.or_(
+                Transportadora.razao_social.ilike(like),
+                Transportadora.nome_rntrc.ilike(like),
+                EmbarcadorProvavel.razao_social.ilike(like),
+                EmbarcadorProvavel.nome_fantasia.ilike(like)
+            )
+        )
+        
+    matches_all = query.order_by(MatchPreditivo.score_match.desc()).all()
+    
+    for m in matches_all:
+        m.prospeccao_total = len(m.prospeccoes)
+        if m.prospeccoes:
+            ordenados = sorted(m.prospeccoes, key=lambda x: x.created_at, reverse=True)
+            m.prospeccao_ultimo_status = ordenados[0].status
+            m.prospeccao_ultima_data = ordenados[0].created_at.strftime("%d/%m %H:%M")
+        else:
+            m.prospeccao_ultimo_status = "Pendente"
+            m.prospeccao_ultima_data = "—"
+            
+    colunas_nomes = ["Sugerido", "Validar", "Abordar", "Em contato", "Negociando", "Fechado", "Perdido", "Descartado"]
+    quadro = {c: [] for c in colunas_nomes}
+    
+    for m in matches_all:
+        status_c = m.status if m.status in quadro else "Sugerido"
+        quadro[status_c].append(m)
+        
+    stats = {
+        "total": MatchPreditivo.query.count(),
+        "alta": MatchPreditivo.query.filter_by(prioridade="Alta").count(),
+        "em_contato": MatchPreditivo.query.filter_by(status="Em contato").count(),
+        "negociando": MatchPreditivo.query.filter_by(status="Negociando").count(),
+        "fechados": MatchPreditivo.query.filter_by(status="Fechado").count(),
+        "perdidos": MatchPreditivo.query.filter_by(status="Perdido").count(),
+        "vencidos": MatchPreditivo.query.filter(
+            MatchPreditivo.data_proxima_acao < hoje,
+            MatchPreditivo.data_proxima_acao.isnot(None),
+            MatchPreditivo.data_proxima_acao != "",
+            ~MatchPreditivo.status.in_(["Fechado", "Descartado", "Perdido"])
+        ).count(),
+        "hoje": MatchPreditivo.query.filter_by(data_proxima_acao=hoje).count()
+    }
+    
+    status_labels = {
+        "Sugerido":   ("Sugerido",   "secondary"),
+        "Validar":    ("Validar",    "info"),
+        "Abordar":    ("Abordar",    "warning"),
+        "Em contato": ("Em contato", "primary"),
+        "Negociando": ("Negociando", "success"),
+        "Fechado":    ("Fechado",    "success"),
+        "Perdido":    ("Perdido",    "danger"),
+        "Descartado": ("Descartado", "danger")
+    }
+    
+    return render_template(
+        "kanban.html",
+        quadro=quadro,
+        stats=stats,
+        corredores=Config.CORREDORES,
+        status_labels=status_labels,
+        filtros=dict(corredor=corredor, prioridade=prioridade, temperatura=temperatura, status=status_filtro, min_score=min_score, q=busca, vencido=vencido_filtro),
+        hoje=hoje
+    )
+
+
+@app.route("/kanban/match/<int:match_id>/status", methods=["POST"])
+@login_required
+def atualizar_kanban_status(match_id):
+    match = MatchPreditivo.query.get_or_404(match_id)
+    
+    if request.is_json:
+        data = request.json
+    else:
+        data = request.form
+        
+    novo_status = data.get("status")
+    if not novo_status:
+        return jsonify({"ok": False, "error": "Status nao informado"}), 400
+        
+    valid_status = ["Sugerido", "Validar", "Abordar", "Em contato", "Negociando", "Fechado", "Perdido", "Descartado"]
+    if novo_status not in valid_status:
+        return jsonify({"ok": False, "error": f"Status '{novo_status}' invalido"}), 400
+        
+    try:
+        match.status = novo_status
+        
+        if "temperatura" in data:
+            match.temperatura = data["temperatura"]
+        if "resultado_ultimo" in data:
+            match.resultado_ultimo = data["resultado_ultimo"]
+        if "proxima_acao" in data:
+            match.proxima_acao = data["proxima_acao"]
+        if "data_proxima_acao" in data:
+            match.data_proxima_acao = data["data_proxima_acao"]
+            
+        db.session.commit()
+        return jsonify({"ok": True, "match_id": match.id, "status": match.status})
+    except Exception as ex:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(ex)}), 500
+
+
+@app.route("/kanban/exportar")
+@login_required
+def exportar_kanban():
+    corredor      = request.args.get("corredor", "")
+    prioridade    = request.args.get("prioridade", "")
+    temperatura   = request.args.get("temperatura", "")
+    status_filtro = request.args.get("status", "")
+    
+    query = MatchPreditivo.query
+    if corredor:   query = query.filter_by(corredor=corredor)
+    if prioridade: query = query.filter_by(prioridade=prioridade)
+    if temperatura: query = query.filter_by(temperatura=temperatura)
+    if status_filtro: query = query.filter_by(status=status_filtro)
+    
+    matches = query.order_by(MatchPreditivo.score_match.desc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow([
+        "status", "score_match", "prioridade", "corredor", "transportadora", "embarcador",
+        "cidade_embarcador", "uf_embarcador", "tipo_carga", "temperatura", "proxima_acao",
+        "data_proxima_acao", "resultado_ultimo", "notas"
+    ])
+    
+    for m in matches:
+        writer.writerow([
+            m.status, m.score_match, m.prioridade, m.corredor,
+            m.transportadora.razao_social or m.transportadora.nome_rntrc,
+            m.embarcador.razao_social or m.embarcador.nome_fantasia,
+            m.cidade_destino, m.uf_destino,
+            m.embarcador.tipo_carga_provavel or "",
+            m.temperatura, m.proxima_acao or "", m.data_proxima_acao or "",
+            m.resultado_ultimo or "", m.notas or ""
+        ])
+        
+    output.seek(0)
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=kanban_matches.csv"},
     )
 
 

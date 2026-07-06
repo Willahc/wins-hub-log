@@ -167,4 +167,31 @@ python scripts/migrate_sqlite.py
 *Nota: Este script faz uma cópia preventiva de segurança do banco antes de executar os comandos `ALTER TABLE`.*
 
 
+## Kanban Comercial
+
+O **Kanban Comercial** oferece uma visualização de pipeline das negociações baseadas nos Matches Preditivos.
+
+### Como acessar o Kanban:
+- Acesse a rota `/kanban` ou clique no link **Kanban** no menu superior.
+
+### Como mover cards:
+- **Arrastar e Soltar (Drag & Drop)**: Segure o card de interesse com o mouse e mova-o para a coluna do status correspondente. O status do banco será sincronizado de forma transparente.
+- **Botões Rápidos**: Caso esteja acessando de um celular ou o arrastar falhe, utilize as siglas ou ícones rápidos na base do card para trocar de status instantaneamente (ex: **V** para Validar, **A** para Abordar, **C** para Em contato, **N** para Negociando, **Check** para Fechado, etc.).
+
+### Quais são os status:
+O funil comercial é composto pelas colunas:
+1. **Sugerido**: Match inicial gerado pelo algoritmo preditivo.
+2. **Validar**: Qualificação inicial do lead por parte do comercial.
+3. **Abordar**: Agendado para contato comercial.
+4. **Em contato**: Abordagem em andamento.
+5. **Negociando**: Fit comercial ativo e alinhado.
+6. **Fechado**: Carga de retorno gerada com sucesso.
+7. **Perdido**: Oportunidade perdida.
+8. **Descartado**: Fora do perfil operacional.
+
+### Como os status impactam as métricas:
+A movimentação de um card para **Negociando** incrementa as métricas comerciais de funil. Quando movido para **Fechado**, a taxa de fechamento consolidada é atualizada no dashboard de **Métricas**. Mover para **Perdido** ou **Descartado** fecha a oportunidade com falha, refletindo de imediato nos cards estatísticos gerais.
+
+
+
 
