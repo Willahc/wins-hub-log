@@ -46,12 +46,21 @@ def fetch_brasilapi(cnpj):
 def save_to_cache(data):
     cache_path = "instance/cache_brasilapi_cnpj.jsonl"
     try:
-        # Garante que a pasta instance existe
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         with open(cache_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(data) + "\n")
     except Exception as e:
         print(f"  [Aviso] Falha ao gravar no cache: {e}")
+
+def salvar_csv(output_path, fieldnames, rows):
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
+    except Exception as e:
+        print(f"  [Erro] Falha ao salvar CSV em {output_path}: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Enriquecimento de contatos por CNPJ usando dados públicos.")
@@ -62,6 +71,7 @@ def main():
     parser.add_argument("--tipo", choices=["transportadora", "embarcador", "ambos"], default="ambos", help="Tipo de empresa para filtrar")
     parser.add_argument("--only-empty", action="store_true", help="Enriquecer apenas empresas sem contatos")
     parser.add_argument("--output", required=True, help="Caminho do CSV de saída com resultados")
+    parser.add_argument("--resume", action="store_true", help="Retoma o enriquecimento a partir do arquivo de saída")
     
     args = parser.parse_args()
     
@@ -72,6 +82,7 @@ def main():
     tipo = args.tipo
     only_empty = args.only_empty
     output_path = args.output
+    resume = args.resume
     
     if not os.path.exists(csv_path):
         print(f"Erro: Arquivo CSV de entrada '{csv_path}' nao encontrado.")
@@ -107,6 +118,73 @@ def main():
     else:
         print("    [Aviso] Nenhum cache local encontrado. Criando novo cache...")
         
+    # 2. Ler todas as linhas do CSV de entrada
+    print(f"  Lendo arquivo de entrada: {csv_path}")
+    all_rows = []
+    orig_fields = []
+    try:
+        with open(csv_path, "r", encoding="utf-8-sig") as f:
+            sample = f.read(2048)
+            f.seek(0)
+            delimiter = ";"
+            if sample:
+                if "," in sample and (sample.count(",") > sample.count(";")):
+                    delimiter = ","
+            
+            reader = csv.DictReader(f, delimiter=delimiter)
+            orig_fields = reader.fieldnames or []
+            for row in reader:
+                all_rows.append(dict(row))
+    except Exception as e:
+        print(f"Erro ao ler arquivo de entrada: {e}")
+        sys.exit(1)
+        
+    # Configurar colunas de saída
+    fieldnames = list(orig_fields)
+    for col in ["telefone_encontrado", "email_encontrado", "socios_encontrados", "endereco_encontrado", "fonte_enriquecimento", "status_enriquecimento", "observacao"]:
+        if col not in fieldnames:
+            fieldnames.append(col)
+            
+    # Inicializar novas colunas em todas as linhas
+    for r in all_rows:
+        for col in ["telefone_encontrado", "email_encontrado", "socios_encontrados", "endereco_encontrado", "fonte_enriquecimento", "status_enriquecimento", "observacao"]:
+            if col not in r:
+                r[col] = ""
+        if not r.get("status_enriquecimento"):
+            r["status_enriquecimento"] = "Ignorado"
+            
+    # 3. Carregar progresso anterior se resume for ativo
+    resume_count = 0
+    if resume and os.path.exists(output_path):
+        print(f"  Modo Resume: Restaurando progresso de {output_path}...")
+        try:
+            prev_rows = {}
+            with open(output_path, "r", encoding="utf-8-sig") as f_res:
+                sample = f_res.read(2048)
+                f_res.seek(0)
+                delimiter = ";"
+                if sample and "," in sample and (sample.count(",") > sample.count(";")):
+                    delimiter = ","
+                reader_res = csv.DictReader(f_res, delimiter=delimiter)
+                for row_res in reader_res:
+                    emp_id = row_res.get("id", "").strip()
+                    if emp_id:
+                        prev_rows[emp_id] = row_res
+            
+            # Atualizar all_rows com os dados preenchidos anteriormente
+            for r in all_rows:
+                emp_id = r.get("id", "").strip()
+                if emp_id in prev_rows:
+                    prev_r = prev_rows[emp_id]
+                    status_enr = prev_r.get("status_enriquecimento", "").strip()
+                    if status_enr != "Ignorado" and status_enr != "":
+                        for col in ["telefone_encontrado", "email_encontrado", "socios_encontrados", "endereco_encontrado", "fonte_enriquecimento", "status_enriquecimento", "observacao"]:
+                            r[col] = prev_r.get(col, "")
+                        resume_count += 1
+            print(f"    {resume_count} registros restaurados. Serão pulados nesta execução.")
+        except Exception as e:
+            print(f"    [Aviso] Falha ao ler arquivo de resume: {e}. Prosseguindo sem resume...")
+            
     # Estatísticas
     lines_read = 0
     cnpjs_queried = 0
@@ -119,248 +197,231 @@ def main():
     e_updated = 0
     fields_skipped_existing = 0
     
-    output_rows = []
-    fieldnames = []
-    
     with app.app_context():
         try:
-            with open(csv_path, "r", encoding="utf-8-sig") as f:
-                sample = f.read(2048)
-                f.seek(0)
-                delimiter = ";"
-                if sample:
-                    if "," in sample and (sample.count(",") > sample.count(";")):
-                        delimiter = ","
+            for r in all_rows:
+                lines_read += 1
                 
-                reader = csv.DictReader(f, delimiter=delimiter)
-                orig_fields = reader.fieldnames or []
+                if lines_read % 100 == 0:
+                    print(f"  Progresso: {lines_read} linhas processadas, {cnpjs_queried} CNPJs consultados...")
+                    
+                # Se resume ativado e esta linha já foi processada com sucesso/erro, pula!
+                if resume and r.get("status_enriquecimento") != "Ignorado" and r.get("status_enriquecimento") != "":
+                    # Manter contadores de sucessos restaurados para o relatório final
+                    st = r.get("status_enriquecimento")
+                    if st == "Sucesso":
+                        cnpjs_found += 1
+                        if r.get("telefone_encontrado"): phones_found += 1
+                        if r.get("email_encontrado"): emails_found += 1
+                        if r.get("socios_encontrados"): socios_found += 1
+                    elif st == "Não Encontrado":
+                        cnpjs_not_found += 1
+                    continue
+                    
+                tipo_emp = r.get("tipo_empresa", "").strip().lower()
+                emp_id_str = r.get("id", "").strip()
+                cnpj_raw = r.get("cnpj", "").strip()
+                cnpj = "".join(filter(str.isdigit, cnpj_raw))
                 
-                # Definir colunas de saída
-                fieldnames = list(orig_fields)
-                for col in ["telefone_encontrado", "email_encontrado", "socios_encontrados", "endereco_encontrado", "fonte_enriquecimento", "status_enriquecimento", "observacao"]:
-                    if col not in fieldnames:
-                        fieldnames.append(col)
-                        
-                for row in reader:
-                    lines_read += 1
+                # Filtros de Processamento
+                tipo_match = False
+                if tipo == "ambos":
+                    tipo_match = True
+                elif tipo == "transportadora" and tipo_emp == "transportadora":
+                    tipo_match = True
+                elif tipo == "embarcador" and tipo_emp == "embarcador":
+                    tipo_match = True
                     
-                    if lines_read % 100 == 0:
-                        print(f"  Progresso: {lines_read} linhas processadas, {cnpjs_queried} CNPJs consultados...")
+                has_contact = bool(r.get("telefone", "").strip() or 
+                                   r.get("email", "").strip() or 
+                                   r.get("site", "").strip() or 
+                                   r.get("socios", "").strip())
+                
+                should_process = tipo_match
+                if only_empty and has_contact:
+                    should_process = False
+                    r["observacao"] = "Ignorado: Empresa ja possui contatos no CSV"
                     
-                    tipo_emp = row.get("tipo_empresa", "").strip().lower()
-                    emp_id_str = row.get("id", "").strip()
-                    cnpj_raw = row.get("cnpj", "").strip()
-                    cnpj = "".join(filter(str.isdigit, cnpj_raw))
+                if should_process and cnpjs_queried >= limit:
+                    should_process = False
+                    r["observacao"] = "Ignorado: Limite atingido"
                     
-                    res_row = dict(row)
-                    # Inicializar novas colunas
-                    for col in ["telefone_encontrado", "email_encontrado", "socios_encontrados", "endereco_encontrado", "fonte_enriquecimento", "status_enriquecimento", "observacao"]:
-                        res_row[col] = ""
-                    res_row["status_enriquecimento"] = "Ignorado"
+                if should_process and not cnpj:
+                    should_process = False
+                    r["observacao"] = "Erro: CNPJ invalido/ausente"
                     
-                    # Filtros de Processamento
-                    tipo_match = False
-                    if tipo == "ambos":
-                        tipo_match = True
-                    elif tipo == "transportadora" and tipo_emp == "transportadora":
-                        tipo_match = True
-                    elif tipo == "embarcador" and tipo_emp == "embarcador":
-                        tipo_match = True
-                        
-                    has_contact = bool(row.get("telefone", "").strip() or 
-                                       row.get("email", "").strip() or 
-                                       row.get("site", "").strip() or 
-                                       row.get("socios", "").strip())
+                if should_process:
+                    cnpjs_queried += 1
                     
-                    should_process = tipo_match
-                    if only_empty and has_contact:
-                        should_process = False
-                        res_row["observacao"] = "Ignorado: Empresa ja possui contatos no CSV"
+                    # Salvar CSV a cada 50 consultas
+                    if cnpjs_queried > 0 and cnpjs_queried % 50 == 0:
+                        salvar_csv(output_path, fieldnames, all_rows)
                         
-                    if should_process and cnpjs_queried >= limit:
-                        should_process = False
-                        res_row["observacao"] = "Ignorado: Limite atingido"
+                    # 1. Buscar no cache
+                    cached_data = cache_dict.get(cnpj)
+                    data_api = None
+                    fonte = ""
+                    
+                    if cached_data and cached_data.get("status") == 200:
+                        data_api = cached_data.get("dados")
+                        fonte = "BrasilAPI Cache"
+                    else:
+                        # Buscar na API
+                        if cnpjs_queried > 1 and sleep_time > 0:
+                            time.sleep(sleep_time)
+                            
+                        print(f"  Consultando CNPJ {cnpj_raw} online...")
+                        result = fetch_brasilapi(cnpj)
+                        save_to_cache(result)
+                        cache_dict[cnpj] = result
                         
-                    if should_process and not cnpj:
-                        should_process = False
-                        res_row["observacao"] = "Erro: CNPJ invalido/ausente"
-                        
-                    if should_process:
-                        cnpjs_queried += 1
-                        
-                        # 1. Buscar no cache
-                        cached_data = cache_dict.get(cnpj)
-                        data_api = None
-                        fonte = ""
-                        
-                        if cached_data and cached_data.get("status") == 200:
-                            data_api = cached_data.get("dados")
-                            fonte = "BrasilAPI Cache"
+                        if result.get("status") == 200:
+                            data_api = result.get("dados")
+                            fonte = "BrasilAPI"
+                        elif result.get("status") == 429:
+                            print(f"\n[AVISO] Limite de requisições atingido (HTTP 429). Parando enriquecimento e salvando resultados parciais...")
+                            r["status_enriquecimento"] = "Erro"
+                            r["observacao"] = "Erro API: Status 429 (Too Many Requests)"
+                            
+                            # Marcar todas as linhas seguintes como interrompidas por 429
+                            idx_current = all_rows.index(r)
+                            for rem_r in all_rows[idx_current + 1:]:
+                                if rem_r.get("status_enriquecimento") == "Ignorado":
+                                    rem_r["status_enriquecimento"] = "Ignorado"
+                                    rem_r["observacao"] = "Ignorado: Interrompido por HTTP 429"
+                            break
                         else:
-                            # Buscar na API
-                            if cnpjs_queried > 1 and sleep_time > 0:
-                                time.sleep(sleep_time)
-                                
-                            print(f"  Consultando CNPJ {cnpj_raw} online...")
-                            result = fetch_brasilapi(cnpj)
-                            save_to_cache(result)
-                            cache_dict[cnpj] = result
+                            r["status_enriquecimento"] = "Não Encontrado"
+                            r["observacao"] = f"Erro API: Status {result.get('status')}"
+                            cnpjs_not_found += 1
                             
-                            if result.get("status") == 200:
-                                data_api = result.get("dados")
-                                fonte = "BrasilAPI"
-                            elif result.get("status") == 429:
-                                print(f"\n[AVISO] Limite de requisições atingido (HTTP 429). Parando enriquecimento e salvando resultados parciais...")
-                                res_row["status_enriquecimento"] = "Erro"
-                                res_row["observacao"] = "Erro API: Status 429 (Too Many Requests)"
-                                output_rows.append(res_row)
-                                # Adiciona o resto das linhas como ignoradas
-                                for rem_row_in_reader in reader:
-                                    rem_row = dict(rem_row_in_reader)
-                                    for c in ["telefone_encontrado", "email_encontrado", "socios_encontrados", "endereco_encontrado", "fonte_enriquecimento", "status_enriquecimento", "observacao"]:
-                                        rem_row[c] = ""
-                                    rem_row["status_enriquecimento"] = "Ignorado"
-                                    rem_row["observacao"] = "Ignorado: Interrompido por HTTP 429"
-                                    output_rows.append(rem_row)
-                                break
+                    if data_api:
+                        cnpjs_found += 1
+                        r["fonte_enriquecimento"] = fonte
+                        r["status_enriquecimento"] = "Sucesso"
+                        
+                        # Extrair e formatar dados
+                        ddd_t1 = data_api.get("ddd_telefone_1", "").strip()
+                        ddd_t2 = data_api.get("ddd_telefone_2", "").strip()
+                        raw_phone = ddd_t1 if ddd_t1 else ddd_t2
+                        tel_enc = format_phone(raw_phone)
+                        r["telefone_encontrado"] = tel_enc
+                        if tel_enc:
+                            phones_found += 1
+                            
+                        email_enc = data_api.get("email", "").strip().lower() if data_api.get("email") else ""
+                        r["email_encontrado"] = email_enc
+                        if email_enc:
+                            emails_found += 1
+                            
+                        qsa = data_api.get("qsa", [])
+                        socios_list = [s.get("nome_socio", "").strip() for s in qsa if s.get("nome_socio")]
+                        soc_enc = ", ".join(socios_list)
+                        r["socios_encontrados"] = soc_enc
+                        if soc_enc:
+                            socios_found += 1
+                            
+                        logradouro = data_api.get("logradouro", "").strip()
+                        numero = data_api.get("numero", "").strip()
+                        complemento = data_api.get("complemento", "").strip()
+                        bairro = data_api.get("bairro", "").strip()
+                        cep = data_api.get("cep", "").strip()
+                        municipio = data_api.get("municipio", "").strip()
+                        uf = data_api.get("uf", "").strip()
+                        
+                        addr_parts = []
+                        if logradouro:
+                            if numero:
+                                addr_parts.append(f"{logradouro}, {numero}")
                             else:
-                                res_row["status_enriquecimento"] = "Não Encontrado"
-                                res_row["observacao"] = f"Erro API: Status {result.get('status')}"
-                                cnpjs_not_found += 1
-                                
-                        if data_api:
-                            cnpjs_found += 1
-                            res_row["fonte_enriquecimento"] = fonte
-                            res_row["status_enriquecimento"] = "Sucesso"
+                                addr_parts.append(logradouro)
+                        if complemento:
+                            addr_parts.append(complemento)
+                        if bairro:
+                            addr_parts.append(bairro)
+                        if municipio and uf:
+                            addr_parts.append(f"{municipio}/{uf}")
+                        if cep:
+                            addr_parts.append(f"CEP {cep}")
+                        r["endereco_encontrado"] = " - ".join(addr_parts)
+                        
+                        # Atualizar banco de dados se não for dry-run
+                        if not dry_run:
+                            emp_id = None
+                            if emp_id_str:
+                                try:
+                                    emp_id = int(emp_id_str)
+                                except ValueError:
+                                    pass
+                                    
+                            is_updated = False
                             
-                            # Extrair e formatar dados
-                            ddd_t1 = data_api.get("ddd_telefone_1", "").strip()
-                            ddd_t2 = data_api.get("ddd_telefone_2", "").strip()
-                            raw_phone = ddd_t1 if ddd_t1 else ddd_t2
-                            tel_enc = format_phone(raw_phone)
-                            res_row["telefone_encontrado"] = tel_enc
-                            if tel_enc:
-                                phones_found += 1
-                                
-                            email_enc = data_api.get("email", "").strip().lower() if data_api.get("email") else ""
-                            res_row["email_encontrado"] = email_enc
-                            if email_enc:
-                                emails_found += 1
-                                
-                            qsa = data_api.get("qsa", [])
-                            socios_list = [s.get("nome_socio", "").strip() for s in qsa if s.get("nome_socio")]
-                            soc_enc = ", ".join(socios_list)
-                            res_row["socios_encontrados"] = soc_enc
-                            if soc_enc:
-                                socios_found += 1
-                                
-                            logradouro = data_api.get("logradouro", "").strip()
-                            numero = data_api.get("numero", "").strip()
-                            complemento = data_api.get("complemento", "").strip()
-                            bairro = data_api.get("bairro", "").strip()
-                            cep = data_api.get("cep", "").strip()
-                            municipio = data_api.get("municipio", "").strip()
-                            uf = data_api.get("uf", "").strip()
-                            
-                            addr_parts = []
-                            if logradouro:
-                                if numero:
-                                    addr_parts.append(f"{logradouro}, {numero}")
-                                else:
-                                    addr_parts.append(logradouro)
-                            if complemento:
-                                addr_parts.append(complemento)
-                            if bairro:
-                                addr_parts.append(bairro)
-                            if municipio and uf:
-                                addr_parts.append(f"{municipio}/{uf}")
-                            if cep:
-                                addr_parts.append(f"CEP {cep}")
-                            res_row["endereco_encontrado"] = " - ".join(addr_parts)
-                            
-                            # Atualizar banco de dados se não for dry-run
-                            if not dry_run:
-                                emp_id = None
-                                if emp_id_str:
-                                    try:
-                                        emp_id = int(emp_id_str)
-                                    except ValueError:
-                                        pass
-                                        
-                                is_updated = False
-                                
-                                if tipo_emp == "transportadora":
-                                    t = None
-                                    if emp_id:
-                                        t = db.session.get(Transportadora, emp_id)
-                                    if not t and cnpj:
-                                        t = Transportadora.query.filter_by(cnpj=cnpj).first()
-                                        
-                                    if t:
-                                        if tel_enc:
-                                            if not t.telefone:
-                                                t.telefone = tel_enc
-                                                is_updated = True
-                                            elif t.telefone != tel_enc:
-                                                fields_skipped_existing += 1
-                                        if email_enc:
-                                            if not t.email:
-                                                t.email = email_enc
-                                                is_updated = True
-                                            elif t.email != email_enc:
-                                                fields_skipped_existing += 1
-                                        if soc_enc:
-                                            if not t.socios:
-                                                t.socios = soc_enc
-                                                is_updated = True
-                                            elif t.socios != soc_enc:
-                                                fields_skipped_existing += 1
-                                                
-                                        if is_updated:
-                                            t_updated += 1
-                                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-                                            note_block = f"\n[Contato Receita/CNPJ importado em {timestamp}] fonte: {fonte} | observacao: Enriquecimento automatico de contatos"
-                                            t.notas = (t.notas or "") + note_block
-                                            db.session.add(t)
+                            if tipo_emp == "transportadora":
+                                t = None
+                                if emp_id:
+                                    t = db.session.get(Transportadora, emp_id)
+                                if not t and cnpj:
+                                    t = Transportadora.query.filter_by(cnpj=cnpj).first()
+                                    
+                                if t:
+                                    if tel_enc:
+                                        if not t.telefone:
+                                            t.telefone = tel_enc
+                                            is_updated = True
+                                        elif t.telefone != tel_enc:
+                                            fields_skipped_existing += 1
+                                    if email_enc:
+                                        if not t.email:
+                                            t.email = email_enc
+                                            is_updated = True
+                                        elif t.email != email_enc:
+                                            fields_skipped_existing += 1
+                                    if soc_enc:
+                                        if not t.socios:
+                                            t.socios = soc_enc
+                                            is_updated = True
+                                        elif t.socios != soc_enc:
+                                            fields_skipped_existing += 1
                                             
-                                elif tipo_emp == "embarcador":
-                                    e = None
-                                    if emp_id:
-                                        e = db.session.get(EmbarcadorProvavel, emp_id)
-                                    if not e and cnpj:
-                                        e = EmbarcadorProvavel.query.filter_by(cnpj=cnpj).first()
+                                    if is_updated:
+                                        t_updated += 1
+                                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                                        note_block = f"\n[Contato Receita/CNPJ importado em {timestamp}] fonte: {fonte} | observacao: Enriquecimento automatico de contatos"
+                                        t.notas = (t.notas or "") + note_block
+                                        db.session.add(t)
                                         
-                                    if e:
-                                        if tel_enc:
-                                            if not e.telefone:
-                                                e.telefone = tel_enc
-                                                is_updated = True
-                                            elif e.telefone != tel_enc:
-                                                fields_skipped_existing += 1
-                                        if email_enc:
-                                            if not e.email:
-                                                e.email = email_enc
-                                                is_updated = True
-                                            elif e.email != email_enc:
-                                                fields_skipped_existing += 1
-                                                
-                                        if is_updated:
-                                            e_updated += 1
-                                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-                                            note_block = f"\n[Contato Receita/CNPJ importado em {timestamp}] fonte: {fonte} | observacao: Enriquecimento automatico de contatos"
-                                            e.notas = (e.notas or "") + note_block
-                                            db.session.add(e)
+                            elif tipo_emp == "embarcador":
+                                e = None
+                                if emp_id:
+                                    e = db.session.get(EmbarcadorProvavel, emp_id)
+                                if not e and cnpj:
+                                    e = EmbarcadorProvavel.query.filter_by(cnpj=cnpj).first()
+                                    
+                                if e:
+                                    if tel_enc:
+                                        if not e.telefone:
+                                            e.telefone = tel_enc
+                                            is_updated = True
+                                        elif e.telefone != tel_enc:
+                                            fields_skipped_existing += 1
+                                    if email_enc:
+                                        if not e.email:
+                                            e.email = email_enc
+                                            is_updated = True
+                                        elif e.email != email_enc:
+                                            fields_skipped_existing += 1
                                             
-                    output_rows.append(res_row)
-                    
-            # 3. Salvar no arquivo de saída
-            os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-            with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
-                writer.writeheader()
-                writer.writerows(output_rows)
-                
-            # 4. Backup e Commit no banco
+                                    if is_updated:
+                                        e_updated += 1
+                                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                                        note_block = f"\n[Contato Receita/CNPJ importado em {timestamp}] fonte: {fonte} | observacao: Enriquecimento automatico de contatos"
+                                        e.notas = (e.notas or "") + note_block
+                                        db.session.add(e)
+                                        
+            # 4. Salvar no arquivo de saída final
+            salvar_csv(output_path, fieldnames, all_rows)
+            
+            # 5. Backup e Commit no banco
             if not dry_run and (t_updated > 0 or e_updated > 0):
                 print("  Criando backup do banco de dados...")
                 try:
