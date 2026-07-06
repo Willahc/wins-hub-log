@@ -34,6 +34,15 @@
     .badge-cliente       { background: #14532d; }
     .badge-descartada    { background: #7f1d1d; }
 
+    /* Badges Radar */
+    .badge-radar-alta    { background: #dc2626; color: #fff; } /* Red/Orange para urgência */
+    .badge-radar-media   { background: #d97706; color: #fff; } /* Amber */
+    .badge-radar-baixa   { background: #4b5563; color: #fff; } /* Gray */
+    .radar-score-indicator {
+      font-weight: 700;
+      color: #fbbf24;
+    }
+
     /* Filtros */
     .filter-bar { background: var(--wins-card); border-radius: 10px; }
 
@@ -47,10 +56,20 @@
 <body>
 
 <nav class="navbar navbar-dark px-3 py-2" style="background: var(--wins-card); border-bottom: 1px solid #334155;">
-  <a class="navbar-brand" href="/">
-    <i class="bi bi-truck me-2" style="color: var(--wins-amber)"></i>
-    <span>WiNS</span> Hub Log
-  </a>
+  <div class="d-flex align-items-center gap-3">
+    <a class="navbar-brand m-0" href="/">
+      <i class="bi bi-truck me-2" style="color: var(--wins-amber)"></i>
+      <span>WiNS</span> Hub Log
+    </a>
+    {% if session.logado %}
+      <a href="/" class="btn btn-sm text-decoration-none {% if request.path == '/' %}text-warning fw-bold{% else %}text-light{% endif %}">
+        <i class="bi bi-list-task me-1"></i>Geral
+      </a>
+      <a href="/radar" class="btn btn-sm text-decoration-none {% if request.path == '/radar' %}text-warning fw-bold{% else %}text-light{% endif %}">
+        <i class="bi bi-radar me-1"></i>Radar Preditivo
+      </a>
+    {% endif %}
+  </div>
   <div class="d-flex gap-2 align-items-center">
     {% if session.logado %}
       <small class="text-muted d-none d-md-inline">Inteligência de Frete</small>

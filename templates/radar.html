@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — WiNS Hub Log{% endblock %}
+{% block title %}Radar Preditivo — WiNS Hub Log{% endblock %}
 
 {% block content %}
 
@@ -31,10 +31,12 @@
 <div class="filter-bar p-3 mb-3">
   <form method="GET" class="row g-2 align-items-end">
     <div class="col-12 col-md-3">
+      <label class="form-label small text-muted mb-1">Buscar termo</label>
       <input type="text" name="q" class="form-control form-control-sm"
              placeholder="Buscar empresa, CNPJ, sócio..." value="{{ filtros.q }}">
     </div>
     <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Corredor</label>
       <select name="corredor" class="form-select form-select-sm">
         <option value="">Todos corredores</option>
         {% for nome in corredores %}
@@ -43,6 +45,7 @@
       </select>
     </div>
     <div class="col-6 col-md-1">
+      <label class="form-label small text-muted mb-1">UF</label>
       <select name="uf" class="form-select form-select-sm">
         <option value="">UF</option>
         {% for u in ufs %}
@@ -51,8 +54,23 @@
       </select>
     </div>
     <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Prioridade</label>
+      <select name="prioridade" class="form-select form-select-sm">
+        <option value="">Todas prioridades</option>
+        <option value="Alta" {% if filtros.prioridade == 'Alta' %}selected{% endif %}>Alta</option>
+        <option value="Média" {% if filtros.prioridade == 'Média' %}selected{% endif %}>Média</option>
+        <option value="Baixa" {% if filtros.prioridade == 'Baixa' %}selected{% endif %}>Baixa</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-1">
+      <label class="form-label small text-muted mb-1">Min Score</label>
+      <input type="number" name="min_score" class="form-control form-control-sm"
+             placeholder="Ex: 60" value="{{ filtros.min_score }}" min="0" max="100">
+    </div>
+    <div class="col-6 col-md-1">
+      <label class="form-label small text-muted mb-1">Status CRM</label>
       <select name="status" class="form-select form-select-sm">
-        <option value="">Todos status</option>
+        <option value="">CRM</option>
         {% for s in status_list %}
           <option value="{{ s }}" {% if filtros.status == s %}selected{% endif %}>
             {{ status_labels[s][0] }}
@@ -60,18 +78,11 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-6 col-md-2">
-      <div class="form-check form-switch ms-1 mt-1">
-        <input class="form-check-input" type="checkbox" name="cnae_frete" value="1" id="cnaeCheck"
-               {% if filtros.cnae_frete == '1' %}checked{% endif %}>
-        <label class="form-check-label small" for="cnaeCheck">Só CNAE frete</label>
-      </div>
-    </div>
     <div class="col-12 col-md-2 d-flex gap-1">
       <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
-        <i class="bi bi-funnel"></i> Filtrar
+        <i class="bi bi-radar"></i> Filtrar Radar
       </button>
-      <a href="/" class="btn btn-sm btn-outline-secondary">
+      <a href="/radar" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-x"></i>
       </a>
     </div>
@@ -81,59 +92,18 @@
 {# ── Toolbar: importar / exportar ─────────────────────────────────────────── #}
 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
   <div class="text-muted small">
-    {% if sem_filtro %}
-      <span class="text-warning">Selecione um filtro acima pra carregar empresas</span>
-    {% else %}
-      <strong class="text-white">{{ total_empresas }}</strong> empresas
-      {% if total_pages > 1 %}
-        &nbsp;·&nbsp;página <strong class="text-white">{{ page }}</strong>/{{ total_pages }}
-        (mostrando {{ (page-1) * page_size + 1 }}–{{ [page * page_size, total_empresas]|min }})
-      {% endif %}
-    {% endif %}
-    {% if ultimo_log %}
-      &nbsp;·&nbsp;
-      <span class="text-muted">Última importação:
-        <span id="ultimo-status">{{ ultimo_log.mensagem }}</span>
-        ({{ ultimo_log.iniciado.strftime('%d/%m %H:%M') }})
-      </span>
+    <strong class="text-white">{{ total_empresas }}</strong> oportunidades radar encontradas
+    {% if total_pages > 1 %}
+      &nbsp;·&nbsp;página <strong class="text-white">{{ page }}</strong>/{{ total_pages }}
+      (mostrando {{ (page-1) * page_size + 1 }}–{{ [page * page_size, total_empresas]|min }})
     {% endif %}
   </div>
   <div class="d-flex gap-2 flex-wrap">
-    {# Importar corredor #}
-    <div class="dropdown">
-      <button class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown">
-        <i class="bi bi-cloud-download"></i> Importar corredor
-      </button>
-      <ul class="dropdown-menu">
-        {% for nome in corredores %}
-        <li>
-          <form method="POST" action="/importar" class="px-3 py-1">
-            <input type="hidden" name="corredor" value="{{ nome }}">
-            <button type="submit" class="btn btn-sm btn-link text-light p-0">
-              {{ nome }} ({{ corredores[nome].assimetria }} vazio)
-            </button>
-          </form>
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
     {# Exportar CSV #}
     <a href="/exportar?corredor={{ filtros.corredor }}&status={{ filtros.status }}"
        class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-download"></i> Exportar CSV
     </a>
-  </div>
-</div>
-
-{# Barra de progresso importação #}
-<div id="import-progress" class="mb-2">
-  <div class="d-flex justify-content-between small mb-1">
-    <span id="prog-msg">Importando...</span>
-    <span id="prog-pct">0%</span>
-  </div>
-  <div class="progress" style="height:6px">
-    <div id="prog-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
-         style="width:0%"></div>
   </div>
 </div>
 
@@ -147,7 +117,6 @@
         <th>Corredor</th>
         <th>Município</th>
         <th>Telefone</th>
-        <th>Sócios</th>
         <th>CNAE</th>
         <th>Radar</th>
         <th>Status</th>
@@ -179,12 +148,6 @@
           {% else %}
             <span class="text-muted">—</span>
           {% endif %}
-        </td>
-        <td>
-          <span class="text-muted small" style="max-width:160px; display:block; overflow:hidden;
-                text-overflow:ellipsis; white-space:nowrap;" title="{{ e.socios }}">
-            {{ e.socios or '—' }}
-          </span>
         </td>
         <td>
           {% if e.tem_cnae_frete %}
@@ -238,6 +201,22 @@
             {% if e.porte %}<div><i class="bi bi-building text-muted me-1"></i>{{ e.porte }}</div>{% endif %}
             {% if e.data_abertura %}<div class="text-muted">Fundação: {{ e.data_abertura }}</div>{% endif %}
           </div>
+          
+          {# Card radar preditivo detalhado #}
+          <div class="card bg-dark border-secondary mb-3">
+            <div class="card-body p-2 small">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-white fw-bold"><i class="bi bi-radar me-1 text-warning"></i>Radar Preditivo</span>
+                <span class="badge badge-radar-{{ e.radar_prioridade | lower }}">{{ e.radar_prioridade }} ({{ e.radar_score }})</span>
+              </div>
+              <div class="mb-1"><strong>Setor provável:</strong> {{ e.radar_setor }}</div>
+              <div class="mb-1"><strong>Carga provável:</strong> {{ e.radar_tipo_carga }}</div>
+              <div class="mb-1"><strong>Carrocerias:</strong> {{ e.radar_carrocerias }}</div>
+              <hr class="my-1 border-secondary">
+              <div class="text-muted" style="font-size:0.75rem;">{{ e.radar_justificativa }}</div>
+            </div>
+          </div>
+
           <div class="mb-3">
             <a href="https://www.cnpj.ws/{{ e.cnpj.replace('.','').replace('/','').replace('-','') }}"
                target="_blank" class="btn btn-sm btn-outline-warning w-100">
@@ -274,23 +253,9 @@
   </table>
 </div>
 
-{% else %}
-<div class="text-center py-5 text-muted">
-  <i class="bi bi-{{ 'funnel' if sem_filtro else 'inbox' }}" style="font-size:2rem"></i>
-  <p class="mt-2">
-    {% if sem_filtro %}
-      Use os filtros acima pra começar.<br>
-      Escolha um corredor ou marque "Só CNAE frete" pra ver as empresas.
-    {% else %}
-      Nenhuma empresa encontrada com esses filtros.
-    {% endif %}
-  </p>
-</div>
-{% endif %}
-
 {# ── Paginação ────────────────────────────────────────────────────────────── #}
 {% if total_pages and total_pages > 1 %}
-{% set qs %}corredor={{ filtros.corredor }}&uf={{ filtros.uf }}&status={{ filtros.status }}&cnae_frete={{ filtros.cnae_frete }}&q={{ filtros.q }}{% endset %}
+{% set qs %}corredor={{ filtros.corredor }}&uf={{ filtros.uf }}&status={{ filtros.status }}&cnae_frete={{ filtros.cnae_frete }}&q={{ filtros.q }}&min_score={{ filtros.min_score }}&prioridade={{ filtros.prioridade }}{% endset %}
 <nav class="mt-3 d-flex justify-content-center">
   <ul class="pagination pagination-sm mb-0">
     <li class="page-item {% if page <= 1 %}disabled{% endif %}">
@@ -318,6 +283,13 @@
 </nav>
 {% endif %}
 
+{% else %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-inbox" style="font-size:2rem"></i>
+  <p class="mt-2">Nenhuma oportunidade de retorno encontrada com os critérios definidos.</p>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}
@@ -339,27 +311,5 @@ async function salvarStatus(e, id) {
     if (oc) oc.hide();
   }
 }
-
-// Polling do progresso de importação
-{% if ultimo_log and ultimo_log.status == 'rodando' %}
-const logId = {{ ultimo_log.id }};
-const prog  = document.getElementById('import-progress');
-const bar   = document.getElementById('prog-bar');
-const msg   = document.getElementById('prog-msg');
-const pct   = document.getElementById('prog-pct');
-prog.style.display = 'block';
-
-const poll = setInterval(async () => {
-  const r = await fetch(`/status-importacao/${logId}`);
-  const d = await r.json();
-  bar.style.width = d.pct + '%';
-  msg.textContent = d.mensagem;
-  pct.textContent = d.pct + '%';
-  if (d.status !== 'rodando') {
-    clearInterval(poll);
-    if (d.status === 'concluido') setTimeout(() => location.reload(), 1500);
-  }
-}, 2000);
-{% endif %}
 </script>
 {% endblock %}

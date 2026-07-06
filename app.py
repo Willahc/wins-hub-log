@@ -124,6 +124,17 @@ def index():
     page = min(page, total_pages)
     empresas = query.limit(PAGE_SIZE).offset((page - 1) * PAGE_SIZE).all()
 
+    # Injetar dados do radar preditivo em memória
+    from radar.scoring import avaliar_transportadora
+    for e in empresas:
+        res = avaliar_transportadora(e)
+        e.radar_score = res["score_total"]
+        e.radar_prioridade = res["prioridade"]
+        e.radar_setor = res["setor_predito"]
+        e.radar_tipo_carga = res["tipo_carga_provavel"]
+        e.radar_carrocerias = res["carrocerias_provaveis"]
+        e.radar_justificativa = res["justificativa"]
+
     return render_template(
         "index.html",
         empresas=empresas, total_empresas=total_empresas,
@@ -204,14 +215,18 @@ def exportar():
         "corredor", "cnpj", "razao_social", "municipio", "uf",
         "telefone", "email", "socios", "cnae_frete", "porte",
         "status_crm", "notas", "link",
+        "radar_score", "radar_prioridade", "radar_setor", "radar_tipo_carga", "radar_carrocerias", "radar_justificativa"
     ])
+    from radar.scoring import avaliar_transportadora
     for e in empresas:
+        res = avaliar_transportadora(e)
         writer.writerow([
             e.corredor, e.cnpj, e.razao_social or e.nome_rntrc,
             e.municipio, e.uf, e.telefone or "", e.email or "",
             e.socios or "", "Sim" if e.tem_cnae_frete else "Não",
             e.porte or "", e.status_crm, e.notas or "",
             f"https://www.cnpj.ws/{e.cnpj.replace('.','').replace('/','').replace('-','')}",
+            res["score_total"], res["prioridade"], res["setor_predito"], res["tipo_carga_provavel"], res["carrocerias_provaveis"], res["justificativa"]
         ])
 
     output.seek(0)
@@ -220,6 +235,104 @@ def exportar():
         output.getvalue().encode("utf-8-sig"),
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"},
+    )
+
+
+
+# ─── Radar de Carga de Retorno ───────────────────────────────────────────────
+
+@app.route("/radar")
+@login_required
+def radar():
+    corredor  = request.args.get("corredor", "")
+    uf        = request.args.get("uf", "")
+    status    = request.args.get("status", "")
+    cnae_ok   = request.args.get("cnae_frete", "")
+    busca     = request.args.get("q", "").strip()
+    min_score = request.args.get("min_score", "").strip()
+    prioridade = request.args.get("prioridade", "").strip()
+
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+    except ValueError:
+        page = 1
+
+    # Stats para os cards
+    stats = {nome: {"total": 0, "com_frete": 0, "clientes": 0} for nome in Config.CORREDORES}
+    agregados = db.session.query(
+        Transportadora.corredor,
+        db.func.count().label("total"),
+        db.func.sum(db.case((Transportadora.tem_cnae_frete.is_(True), 1), else_=0)).label("com_frete"),
+        db.func.sum(db.case((Transportadora.status_crm == "cliente", 1), else_=0)).label("clientes"),
+    ).group_by(Transportadora.corredor).all()
+    for cor, total, com_frete, clientes in agregados:
+        if cor in stats:
+            stats[cor] = {"total": int(total or 0),
+                          "com_frete": int(com_frete or 0),
+                          "clientes":  int(clientes or 0)}
+
+    ultimo_log = ImportLog.query.order_by(ImportLog.iniciado.desc()).first()
+    ufs = [r[0] for r in db.session.query(Transportadora.uf).distinct().order_by(Transportadora.uf).all() if r[0]]
+
+    query = Transportadora.query
+    if corredor: query = query.filter_by(corredor=corredor)
+    if uf:       query = query.filter_by(uf=uf)
+    if status:   query = query.filter_by(status_crm=status)
+    if cnae_ok == "1":
+        query = query.filter_by(tem_cnae_frete=True)
+    if busca:
+        like = f"%{busca}%"
+        query = query.filter(db.or_(
+            Transportadora.razao_social.ilike(like),
+            Transportadora.nome_rntrc.ilike(like),
+            Transportadora.cnpj.ilike(like),
+            Transportadora.municipio.ilike(like),
+            Transportadora.socios.ilike(like),
+        ))
+
+    candidatas = query.limit(2000).all()
+
+    from radar.scoring import avaliar_transportadora
+    empresas_radar = []
+    for e in candidatas:
+        res = avaliar_transportadora(e)
+        e.radar_score = res["score_total"]
+        e.radar_prioridade = res["prioridade"]
+        e.radar_setor = res["setor_predito"]
+        e.radar_tipo_carga = res["tipo_carga_provavel"]
+        e.radar_carrocerias = res["carrocerias_provaveis"]
+        e.radar_justificativa = res["justificativa"]
+
+        # Filtros do radar
+        if min_score:
+            try:
+                if e.radar_score < float(min_score):
+                    continue
+            except ValueError:
+                pass
+        if prioridade and e.radar_prioridade.lower() != prioridade.lower():
+            continue
+
+        empresas_radar.append(e)
+
+    # Ordenar por score descrescente
+    empresas_radar.sort(key=lambda x: x.radar_score, reverse=True)
+
+    total_empresas = len(empresas_radar)
+    PAGE_SIZE_RADAR = 50
+    total_pages = max(1, (total_empresas + PAGE_SIZE_RADAR - 1) // PAGE_SIZE_RADAR)
+    page = min(page, total_pages)
+    empresas_paginadas = empresas_radar[(page - 1) * PAGE_SIZE_RADAR : page * PAGE_SIZE_RADAR]
+
+    return render_template(
+        "radar.html",
+        empresas=empresas_paginadas, total_empresas=total_empresas,
+        page=page, total_pages=total_pages, page_size=PAGE_SIZE_RADAR,
+        stats=stats, corredores=Config.CORREDORES,
+        status_labels=Config.STATUS_LABELS, status_list=Config.STATUS_CRM,
+        ultimo_log=ultimo_log,
+        filtros=dict(corredor=corredor, uf=uf, status=status, cnae_frete=cnae_ok, q=busca, min_score=min_score, prioridade=prioridade),
+        ufs=ufs
     )
 
 
