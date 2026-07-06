@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Histórico de Prospecção — WiNS Hub Log{% endblock %}
+
+{% block content %}
+
+{# ── Barra de filtros ─────────────────────────────────────────────────────── #}
+<div class="filter-bar p-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-6 col-md-3">
+      <label class="form-label small text-muted mb-1">Corredor</label>
+      <select name="corredor" class="form-select form-select-sm">
+        <option value="">Todos corredores</option>
+        {% for nome in corredores %}
+          <option value="{{ nome }}" {% if filtros.corredor == nome %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Canal</label>
+      <select name="canal" class="form-select form-select-sm">
+        <option value="">Todos canais</option>
+        {% for c in canal_list %}
+          <option value="{{ c }}" {% if filtros.canal == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">Todos status</option>
+        {% for s in status_list %}
+          <option value="{{ s }}" {% if filtros.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Tipo Destinatário</label>
+      <select name="dest_tipo" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        <option value="Embarcador" {% if filtros.dest_tipo == 'Embarcador' %}selected{% endif %}>Embarcador</option>
+        <option value="Transportadora" {% if filtros.dest_tipo == 'Transportadora' %}selected{% endif %}>Transportadora</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-3 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+        <i class="bi bi-funnel"></i> Filtrar Histórico
+      </button>
+      <a href="/prospeccao" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-x"></i>
+      </a>
+    </div>
+  </form>
+</div>
+
+{# ── Tabela ───────────────────────────────────────────────────────────────── #}
+{% if logs %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle mb-0">
+    <thead style="background: #1e293b; position:sticky; top:0; z-index:1;">
+      <tr>
+        <th>Data/Hora</th>
+        <th>Corredor</th>
+        <th>Destinatário</th>
+        <th>Tipo</th>
+        <th>Canal</th>
+        <th>Status</th>
+        <th>Mensagem</th>
+        <th>Observações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in logs %}
+      <tr>
+        <td class="small text-white" style="white-space: nowrap;">
+          {{ l.created_at.strftime('%d/%m/%Y %H:%M') }}
+        </td>
+        <td>
+          <span class="badge bg-secondary" style="font-size:0.7rem;">{{ l.match.corredor }}</span>
+        </td>
+        <td>
+          <div class="fw-semibold text-white small" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+               title="{{ l.destinatario_nome }}">
+            {{ l.destinatario_nome }}
+          </div>
+          <small class="text-muted">{{ l.destinatario_contato or '—' }}</small>
+        </td>
+        <td>
+          <span class="badge" style="background: #334155;">{{ l.destinatario_tipo }}</span>
+        </td>
+        <td>
+          <span class="text-light small"><i class="bi bi-{{ 'whatsapp text-success' if l.canal == 'WhatsApp' else ('envelope text-muted' if l.canal == 'E-mail' else 'telephone text-info') }} me-1"></i>{{ l.canal }}</span>
+        </td>
+        <td>
+          <span class="badge badge-radar-{{ 'alta' if l.status in ['Respondida','Enviada manualmente'] else ('media' if l.status in ['Gerada','Copiada'] else 'baixa') }}">
+            {{ l.status }}
+          </span>
+        </td>
+        <td>
+          <span class="text-muted small" style="max-width:240px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ l.mensagem }}">
+            {{ l.mensagem }}
+          </span>
+        </td>
+        <td>
+          <span class="text-muted small" style="max-width:180px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ l.observacao }}">
+            {{ l.observacao or '—' }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-chat-left-text" style="font-size:2rem"></i>
+  <p class="mt-2">Nenhum histórico de prospecção comercial registrado.</p>
+</div>
+{% endif %}
+
+{% endblock %}

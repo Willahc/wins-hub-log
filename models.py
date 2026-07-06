@@ -146,3 +146,23 @@ class MatchPreditivo(db.Model):
     )
 
 
+class ProspeccaoLog(db.Model):
+    __tablename__ = "prospeccao_logs"
+
+    id                   = db.Column(db.Integer, primary_key=True)
+    match_id             = db.Column(db.Integer, db.ForeignKey("matches_preditivos.id", ondelete="CASCADE"), nullable=False)
+    canal                = db.Column(db.String(20), nullable=False)
+    destinatario_tipo    = db.Column(db.String(20), nullable=False)
+    destinatario_nome    = db.Column(db.String(150))
+    destinatario_contato = db.Column(db.String(150))
+    mensagem             = db.Column(db.Text)
+    status               = db.Column(db.String(20), nullable=False)
+    observacao           = db.Column(db.Text)
+    created_at           = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at           = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relacionamento
+    match = db.relationship("MatchPreditivo", backref=db.backref("prospeccoes", cascade="all, delete-orphan"))
+
+
+

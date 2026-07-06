@@ -8,7 +8,7 @@ from flask import (Flask, Response, flash, jsonify, redirect,
 from flask_sqlalchemy import SQLAlchemy
 
 from config import Config
-from models import ImportLog, Transportadora, EmbarcadorProvavel, MatchPreditivo, db
+from models import ImportLog, Transportadora, EmbarcadorProvavel, MatchPreditivo, ProspeccaoLog, db
 from jobs import iniciar_importacao
 
 app = Flask(__name__)
@@ -607,6 +607,17 @@ def matches_lista():
     
     matches = query.limit(PAGE_SIZE_MATCH).offset((page - 1) * PAGE_SIZE_MATCH).all()
 
+    # Preencher dados de prospecção em memória para a listagem
+    for m in matches:
+        m.prospeccao_total = len(m.prospeccoes)
+        if m.prospeccoes:
+            ordenados = sorted(m.prospeccoes, key=lambda x: x.created_at, reverse=True)
+            m.prospeccao_ultimo_status = ordenados[0].status
+            m.prospeccao_ultima_data = ordenados[0].created_at.strftime("%d/%m %H:%M")
+        else:
+            m.prospeccao_ultimo_status = "Pendente"
+            m.prospeccao_ultima_data = "—"
+
     # Filtros dinâmicos no template
     ufs_origem = [r[0] for r in db.session.query(MatchPreditivo.uf_origem).distinct().order_by(MatchPreditivo.uf_origem).all() if r[0]]
     ufs_destino = [r[0] for r in db.session.query(MatchPreditivo.uf_destino).distinct().order_by(MatchPreditivo.uf_destino).all() if r[0]]
@@ -685,10 +696,19 @@ def exportar_matches():
     writer.writerow([
         "score_match", "prioridade", "corredor", "transportadora",
         "cidade_transportadora", "uf_transportadora", "embarcador",
-        "cidade_embarcador", "uf_embarcador", "setor", "tipo_carga", "status", "justificativa", "notas"
+        "cidade_embarcador", "uf_embarcador", "setor", "tipo_carga", "status", "justificativa", "notas",
+        "prospeccao_total", "prospeccao_ultimo_status", "prospeccao_ultima_data"
     ])
     
     for m in matches:
+        total_p = len(m.prospeccoes)
+        ultimo_status_p = "Pendente"
+        ultima_data_p = "—"
+        if m.prospeccoes:
+            ordenados = sorted(m.prospeccoes, key=lambda x: x.created_at, reverse=True)
+            ultimo_status_p = ordenados[0].status
+            ultima_data_p = ordenados[0].created_at.strftime("%d/%m/%Y %H:%M")
+
         writer.writerow([
             m.score_match, m.prioridade, m.corredor,
             m.transportadora.razao_social or m.transportadora.nome_rntrc,
@@ -697,7 +717,8 @@ def exportar_matches():
             m.cidade_destino, m.uf_destino,
             m.embarcador.setor_predito or "",
             m.embarcador.tipo_carga_provavel or "",
-            m.status, m.justificativa or "", m.notas or ""
+            m.status, m.justificativa or "", m.notas or "",
+            total_p, ultimo_status_p, ultima_data_p
         ])
 
     output.seek(0)
@@ -706,6 +727,109 @@ def exportar_matches():
         output.getvalue().encode("utf-8-sig"),
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename={nome_arquivo}"},
+    )
+
+
+
+# ─── Prospecção Assistida ────────────────────────────────────────────────────
+
+@app.route("/matches/<int:match_id>/prospeccao")
+@login_required
+def prospeccao_match(match_id):
+    match = MatchPreditivo.query.get_or_404(match_id)
+    from radar.prospeccao import (gerar_mensagem_embarcador, 
+                                  gerar_mensagem_transportadora, 
+                                  gerar_assunto_email, 
+                                  montar_link_whatsapp)
+    msg_emb = gerar_mensagem_embarcador(match)
+    msg_transp = gerar_mensagem_transportadora(match)
+    assunto = gerar_assunto_email(match)
+    
+    contato_emb = match.embarcador.telefone or ""
+    email_emb = match.embarcador.email or ""
+    contato_transp = match.transportadora.telefone or ""
+    email_transp = match.transportadora.email or ""
+    
+    link_wa_emb = montar_link_whatsapp(contato_emb, msg_emb)
+    link_wa_transp = montar_link_whatsapp(contato_transp, msg_transp)
+    
+    logs = [
+        {
+            "id": l.id,
+            "canal": l.canal,
+            "destinatario_tipo": l.destinatario_tipo,
+            "destinatario_nome": l.destinatario_nome,
+            "destinatario_contato": l.destinatario_contato,
+            "status": l.status,
+            "observacao": l.observacao,
+            "data": l.created_at.strftime("%d/%m/%Y %H:%M")
+        } for l in match.prospeccoes
+    ]
+    
+    return jsonify({
+        "ok": True,
+        "msg_emb": msg_emb,
+        "msg_transp": msg_transp,
+        "assunto": assunto,
+        "link_wa_emb": link_wa_emb,
+        "link_wa_transp": link_wa_transp,
+        "contato_emb": contato_emb,
+        "email_emb": email_emb,
+        "contato_transp": contato_transp,
+        "email_transp": email_transp,
+        "logs": logs
+    })
+
+
+@app.route("/matches/<int:match_id>/prospeccao/log", methods=["POST"])
+@login_required
+def criar_prospeccao_log(match_id):
+    match = MatchPreditivo.query.get_or_404(match_id)
+    
+    log = ProspeccaoLog(
+        match_id=match.id,
+        canal=request.form.get("canal", "WhatsApp").strip(),
+        destinatario_tipo=request.form.get("destinatario_tipo", "Embarcador").strip(),
+        destinatario_nome=request.form.get("destinatario_nome", "").strip(),
+        destinatario_contato=request.form.get("destinatario_contato", "").strip(),
+        mensagem=request.form.get("mensagem", "").strip(),
+        status=request.form.get("status", "Gerada").strip(),
+        observacao=request.form.get("observacao", "").strip()
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    return jsonify({"ok": True, "log_id": log.id})
+
+
+@app.route("/prospeccao")
+@login_required
+def prospeccao_historico():
+    canal = request.args.get("canal", "")
+    status = request.args.get("status", "")
+    corredor = request.args.get("corredor", "")
+    dest_tipo = request.args.get("dest_tipo", "")
+    
+    query = ProspeccaoLog.query.join(MatchPreditivo)
+    
+    if canal: query = query.filter(ProspeccaoLog.canal == canal)
+    if status: query = query.filter(ProspeccaoLog.status == status)
+    if dest_tipo: query = query.filter(ProspeccaoLog.destinatario_tipo == dest_tipo)
+    if corredor: query = query.filter(MatchPreditivo.corredor == corredor)
+    
+    query = query.order_by(ProspeccaoLog.created_at.desc())
+    logs = query.limit(100).all()
+    
+    status_list = ["Gerada", "Copiada", "Enviada manualmente", "Respondida", "Sem resposta", "Descartada"]
+    canal_list = ["WhatsApp", "E-mail", "Ligação", "Outro"]
+    
+    return render_template(
+        "prospeccao.html",
+        logs=logs,
+        status_list=status_list,
+        canal_list=canal_list,
+        corredores=Config.CORREDORES,
+        filtros=dict(canal=canal, status=status, corredor=corredor, dest_tipo=dest_tipo)
     )
 
 

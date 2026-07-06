@@ -150,6 +150,13 @@
               {{ m.prioridade }}
             </span>
           </div>
+          <div class="text-muted small" style="font-size: 0.72rem;">
+            Prospecção: <span id="prop-total-{{ m.id }}">{{ m.prospeccao_total }}</span> ações
+            <div id="prop-meta-{{ m.id }}" style="font-size:0.68rem; {% if m.prospeccao_total == 0 %}display:none;{% endif %}">
+              Última: <strong class="text-light" id="prop-status-{{ m.id }}">{{ m.prospeccao_ultimo_status }}</strong> 
+              (<span id="prop-data-{{ m.id }}">{{ m.prospeccao_ultima_data }}</span>)
+            </div>
+          </div>
         </td>
         <td>
           <span class="badge bg-secondary" style="font-size:0.7rem;">{{ m.corredor }}</span>
@@ -181,7 +188,8 @@
         </td>
         <td>
           <button class="btn btn-sm btn-outline-secondary py-0 px-2"
-                  data-bs-toggle="offcanvas" data-bs-target="#painel-{{ m.id }}">
+                  data-bs-toggle="offcanvas" data-bs-target="#painel-{{ m.id }}"
+                  onclick="carregarProspeccao({{ m.id }})">
             <i class="bi bi-pencil-square"></i>
           </button>
         </td>
@@ -229,6 +237,106 @@
                 <div class="col-6">Carga: {{ m.score_carga }}/100</div>
                 <div class="col-6">CRM: {{ m.score_crm }}/100</div>
               </div>
+            </div>
+          </div>
+
+          {# Prospecção Assistida #}
+          <div class="card bg-dark border-info mb-3">
+            <div class="card-header bg-transparent border-secondary text-info fw-bold py-2">
+              <i class="bi bi-chat-left-text me-1"></i>Prospecção Assistida
+            </div>
+            <div class="card-body p-2">
+              <ul class="nav nav-tabs nav-justified mb-2" id="tab-prosp-{{ m.id }}" role="tablist" style="font-size: 0.75rem;">
+                <li class="nav-item">
+                  <button class="nav-link active py-1" data-bs-toggle="tab" data-bs-target="#prosp-emb-{{ m.id }}" type="button">Embarcador</button>
+                </li>
+                <li class="nav-item">
+                  <button class="nav-link py-1" data-bs-toggle="tab" data-bs-target="#prosp-transp-{{ m.id }}" type="button">Transportadora</button>
+                </li>
+              </ul>
+              
+              <div class="tab-content" id="tab-content-prosp-{{ m.id }}">
+                <!-- Tab Embarcador -->
+                <div class="tab-pane fade show active" id="prosp-emb-{{ m.id }}">
+                  <div class="mb-2">
+                    <label class="form-label small text-muted mb-0">Assunto de e-mail sugerido</label>
+                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="assunto-emb-{{ m.id }}" readonly style="font-size: 0.75rem;">
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small text-muted mb-0">Mensagem de abordagem</label>
+                    <textarea class="form-control form-control-sm bg-dark text-white border-secondary" id="msg-emb-{{ m.id }}" rows="6" readonly style="font-size: 0.78rem;"></textarea>
+                  </div>
+                  <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-info flex-grow-1" onclick="copiarMensagem('msg-emb-{{ m.id }}', {{ m.id }}, 'Embarcador', 'Copiada')">
+                      <i class="bi bi-copy me-1"></i>Copiar
+                    </button>
+                    <a href="#" target="_blank" class="btn btn-sm btn-success" id="btn-wa-emb-{{ m.id }}" onclick="logarAcao({{ m.id }}, 'WhatsApp', 'Embarcador', 'Enviada manualmente')">
+                      <i class="bi bi-whatsapp me-1"></i>WhatsApp
+                    </a>
+                  </div>
+                </div>
+                
+                <!-- Tab Transportadora -->
+                <div class="tab-pane fade" id="prosp-transp-{{ m.id }}">
+                  <div class="mb-2">
+                    <label class="form-label small text-muted mb-0">Mensagem de abordagem</label>
+                    <textarea class="form-control form-control-sm bg-dark text-white border-secondary" id="msg-transp-{{ m.id }}" rows="6" readonly style="font-size: 0.78rem;"></textarea>
+                  </div>
+                  <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-info flex-grow-1" onclick="copiarMensagem('msg-transp-{{ m.id }}', {{ m.id }}, 'Transportadora', 'Copiada')">
+                      <i class="bi bi-copy me-1"></i>Copiar
+                    </button>
+                    <a href="#" target="_blank" class="btn btn-sm btn-success" id="btn-wa-transp-{{ m.id }}" onclick="logarAcao({{ m.id }}, 'WhatsApp', 'Transportadora', 'Enviada manualmente')">
+                      <i class="bi bi-whatsapp me-1"></i>WhatsApp
+                    </a>
+                  </div>
+                </div>
+              </div>
+              
+              <hr class="my-2 border-secondary">
+              
+              <!-- Registrar Log Manual -->
+              <form id="form-log-{{ m.id }}" onsubmit="registrarLogManual(event, {{ m.id }})" class="small">
+                <div class="row g-1 mb-1">
+                  <div class="col-4">
+                    <select name="destinatario_tipo" class="form-select form-select-xs bg-dark text-white border-secondary" id="log-dest-tipo-{{ m.id }}" style="font-size:0.75rem;">
+                      <option value="Embarcador">Embarcador</option>
+                      <option value="Transportadora">Transp.</option>
+                    </select>
+                  </div>
+                  <div class="col-4">
+                    <select name="canal" class="form-select form-select-xs bg-dark text-white border-secondary" style="font-size:0.75rem;">
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="E-mail">E-mail</option>
+                      <option value="Ligação">Ligação</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+                  <div class="col-4">
+                    <select name="status" class="form-select form-select-xs bg-dark text-white border-secondary" style="font-size:0.75rem;">
+                      <option value="Enviada manualmente">Enviada</option>
+                      <option value="Respondida">Respondida</option>
+                      <option value="Sem resposta">Sem resp.</option>
+                      <option value="Descartada">Descartada</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="mb-1">
+                  <input type="text" name="observacao" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Observação comercial..." required style="font-size:0.75rem;">
+                </div>
+                <button type="submit" class="btn btn-xs btn-warning w-100 py-1" style="font-weight:600; font-size:0.75rem;">
+                  <i class="bi bi-journal-plus me-1"></i>Registrar Ação Comercial
+                </button>
+              </form>
+              
+              <!-- Listagem de logs recentes -->
+              <div class="mt-2 text-muted" style="font-size:0.7rem;">
+                <div class="text-white fw-bold mb-1" style="font-size: 0.72rem;">Histórico Recente</div>
+                <div id="prosp-hist-{{ m.id }}" style="max-height: 120px; overflow-y: auto;">
+                  Carregando histórico...
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -305,6 +413,135 @@
 
 {% block scripts %}
 <script>
+// Carregar dados de prospecção dinamicamente ao abrir painel
+async function carregarProspeccao(matchId) {
+  const resp = await fetch(`/matches/${matchId}/prospeccao`);
+  const data = await resp.json();
+  if (data.ok) {
+    document.getElementById(`assunto-emb-${matchId}`).value = data.assunto;
+    document.getElementById(`msg-emb-${matchId}`).value = data.msg_emb;
+    document.getElementById(`msg-transp-${matchId}`).value = data.msg_transp;
+    
+    const waEmb = document.getElementById(`btn-wa-emb-${matchId}`);
+    if (data.link_wa_emb) {
+      waEmb.href = data.link_wa_emb;
+      waEmb.classList.remove('disabled');
+    } else {
+      waEmb.href = "#";
+      waEmb.classList.add('disabled');
+    }
+    
+    const waTransp = document.getElementById(`btn-wa-transp-${matchId}`);
+    if (data.link_wa_transp) {
+      waTransp.href = data.link_wa_transp;
+      waTransp.classList.remove('disabled');
+    } else {
+      waTransp.href = "#";
+      waTransp.classList.add('disabled');
+    }
+    
+    renderizarHistorico(matchId, data.logs);
+  }
+}
+
+function renderizarHistorico(matchId, logs) {
+  const div = document.getElementById(`prosp-hist-${matchId}`);
+  if (!logs || logs.length === 0) {
+    div.innerHTML = "<div>Nenhuma prospecção comercial registrada.</div>";
+    return;
+  }
+  
+  let html = "";
+  logs.forEach(l => {
+    html += `
+      <div class="border-bottom border-secondary pb-1 mb-1" style="font-size:0.7rem;">
+        <div class="d-flex justify-content-between">
+          <strong class="text-light">${l.canal} para ${l.destinatario_tipo}</strong>
+          <span class="text-warning font-weight-bold">${l.status}</span>
+        </div>
+        <div>${l.observacao || '—'}</div>
+        <div class="text-muted" style="font-size:0.6rem;">${l.data}</div>
+      </div>
+    `;
+  });
+  div.innerHTML = html;
+}
+
+// Copiar mensagem para clipboard e salvar log como Copiada
+async function copiarMensagem(textareaId, matchId, destTipo, status) {
+  const area = document.getElementById(textareaId);
+  area.select();
+  document.execCommand("copy");
+  
+  await logarAcao(matchId, 'Clipboard', destTipo, status);
+  alert("Abordagem copiada para a área de transferência!");
+}
+
+// Logar ação automática rápido
+async function logarAcao(matchId, canal, destTipo, status) {
+  const form = new FormData();
+  form.append('canal', canal);
+  form.append('destinatario_tipo', destTipo);
+  form.append('destinatario_nome', destTipo === 'Embarcador' ? 'Lead Embarcador' : 'Lead Transportadora');
+  form.append('status', status);
+  form.append('observacao', `Mensagem comercial copiada/iniciada para o ${destTipo.toLowerCase()}.`);
+  
+  const r = await fetch(`/matches/${matchId}/prospeccao/log`, { method: 'POST', body: form });
+  const d = await r.json();
+  if (d.ok) {
+    carregarProspeccao(matchId);
+    
+    // Atualizar tabela principal
+    atualizarTabelaProspeccao(matchId, status);
+  }
+}
+
+// Registrar log manual do formulário
+async function registrarLogManual(e, matchId) {
+  e.preventDefault();
+  const form = e.target;
+  const data = new FormData(form);
+  
+  const destTipo = document.getElementById(`log-dest-tipo-${matchId}`).value;
+  data.append('destinatario_nome', destTipo === 'Embarcador' ? 'Lead Embarcador' : 'Lead Transportadora');
+  data.append('mensagem', `Abordagem registrada via formulário de histórico.`);
+  
+  const r = await fetch(`/matches/${matchId}/prospeccao/log`, { method: 'POST', body: data });
+  const d = await r.json();
+  if (d.ok) {
+    const status = data.get('status');
+    form.reset();
+    carregarProspeccao(matchId);
+    
+    atualizarTabelaProspeccao(matchId, status);
+  }
+}
+
+function atualizarTabelaProspeccao(matchId, status) {
+  const totalSpan = document.getElementById(`prop-total-${matchId}`);
+  if (totalSpan) {
+    const novoTotal = parseInt(totalSpan.textContent) + 1;
+    totalSpan.textContent = novoTotal;
+  }
+  const metaDiv = document.getElementById(`prop-meta-${matchId}`);
+  if (metaDiv) {
+    metaDiv.style.display = 'block';
+  }
+  const statusSpan = document.getElementById(`prop-status-${matchId}`);
+  if (statusSpan) {
+    statusSpan.textContent = status;
+  }
+  const dataSpan = document.getElementById(`prop-data-${matchId}`);
+  if (dataSpan) {
+    const agora = new Date();
+    const dia = String(agora.getDate()).padStart(2, '0');
+    const mes = String(agora.getMonth() + 1).padStart(2, '0');
+    const hora = String(agora.getHours()).padStart(2, '0');
+    const min = String(agora.getMinutes()).padStart(2, '0');
+    dataSpan.textContent = `${dia}/${mes} ${hora}:${min}`;
+  }
+}
+
 async function salvarCRMMatch(e, id) {
   e.preventDefault();
   const form = e.target;
@@ -312,13 +549,11 @@ async function salvarCRMMatch(e, id) {
   const resp = await fetch(`/matches/${id}/crm`, { method: 'POST', body: data });
   const json = await resp.json();
   if (json.ok) {
-    // Atualizar badge de status na tabela
     const badge = document.getElementById(`badge-${id}`);
     const labels = {{ status_labels | tojson }};
     badge.textContent = labels[json.status][0];
     badge.className = `badge badge-${json.status.toLowerCase().replace(' ', '_')}`;
     
-    // Fechar offcanvas
     const oc = bootstrap.Offcanvas.getInstance(document.getElementById(`painel-${id}`));
     if (oc) oc.hide();
   }
