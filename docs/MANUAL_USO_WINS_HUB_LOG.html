@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual de Uso — WiNS Hub Log</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-color: #e2e8f0;
+      --text-muted: #94a3b8;
+      --primary: #f59e0b;
+      --primary-hover: #d97706;
+      --border-color: #334155;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: var(--font-family);
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    h1, h2, h3, h4 {
+      color: #ffffff;
+      font-weight: 600;
+    }
+    h1 {
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 10px;
+      margin-bottom: 30px;
+    }
+    h2 {
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+      margin-top: 40px;
+      margin-bottom: 20px;
+    }
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    code {
+      background-color: var(--card-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.9em;
+      color: #f43f5e;
+    }
+    pre {
+      background-color: var(--card-bg);
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      border: 1px solid var(--border-color);
+    }
+    pre code {
+      background-color: transparent;
+      padding: 0;
+      color: var(--text-color);
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      margin: 20px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    th {
+      background-color: var(--card-bg);
+      color: #ffffff;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      font-weight: 500;
+    }
+    .badge-success { background-color: rgba(22, 163, 74, 0.2); color: #4ade80; border: 1px solid #22c55e; }
+    .badge-warning { background-color: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid #eab308; }
+    .badge-danger { background-color: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+    .badge-info { background-color: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #3b82f6; }
+    .alert-warning {
+      background-color: rgba(234, 179, 8, 0.1);
+      border-left: 4px solid var(--primary);
+      padding: 15px;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+    .alert-warning p {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Manual de Uso — WiNS Hub Log</h1>
+    <p>Este manual foi desenvolvido para guiar operadores comerciais e operacionais no uso do sistema <strong>WiNS Hub Log</strong> de forma prática, passo a passo e sem necessidade de conhecimento técnico em programação.</p>
+
+    <h2>1. O que é o WiNS Hub Log</h2>
+    <p>O <strong>WiNS Hub Log</strong> é uma ferramenta de inteligência de dados logística projetada para combater a ineficiência de caminhões retornando vazios (capacidade ociosa) nas estradas brasileiras.</p>
+    <ul>
+      <li><strong>Cruzamento de Dados:</strong> A ferramenta analisa dados de transportadoras (oferta de caminhões) e de embarcadores (demanda de cargas) para sugerir as melhores combinações por corredor logístico.</li>
+      <li><strong>Mapeamento Preditivo:</strong> Ao identificar assimetrias geográficas e operacionais, o sistema gera "matches" preditivos.</li>
+      <li><strong>Segurança e Operação Manual:</strong> <strong>A ferramenta NÃO dispara e-mails, SMS, WhatsApp ou chamadas telefônicas de forma automatizada.</strong> Todas as ações de contato e validação comercial devem ser feitas manualmente pelo operador do sistema.</li>
+    </ul>
+
+    <h2>2. Conceitos Principais</h2>
+    <h3>Match</h3>
+    <p>Uma combinação lógica entre uma transportadora e um embarcador provável que têm afinidade de rotas, setores e carrocerias.</p>
+
+    <h3>Score Match</h3>
+    <p>O indicador de compatibilidade logística original (calculado de 0 a 100). É o ranking estatístico principal gerado pelas heurísticas preditivas da ferramenta.</p>
+
+    <h3>Score Comercial</h3>
+    <p>Pontuação (de 0 a 100) que prioriza a abordagem de prospecção. Esse score pondera o <code>score_match</code> original, a disponibilidade de contatos telefônicos nas duas pontas, flags de WhatsApp provável, distância geográfica e completude de dados.</p>
+
+    <h3>Completude</h3>
+    <p>Índice percentual que reflete a qualidade e a quantidade de dados cadastrais disponíveis para uma empresa no sistema (como CNPJ, endereço completo, dados societários/QSA e telefone).</p>
+
+    <h3>Geografia</h3>
+    <p>A distância estimada em quilômetros (<code>distancia_km</code>) entre o endereço ou centroide da cidade da transportadora e a localização do embarcador.</p>
+    <div class="alert-warning">
+      <p><strong>Nota Geográfica:</strong> A maioria dos registros possui precisão estimada em nível de <strong>cidade (centroide municipal)</strong>. Trata-se de um indicador estatístico auxiliar de proximidade, não devendo ser tratado como endereço físico absoluto.</p>
+    </div>
+
+    <h3>Match Acionável</h3>
+    <p>Um match que possui pelo menos uma informação de contato válida (telefone, e-mail, site ou sócios) em qualquer uma das duas pontas para permitir o início da abordagem.</p>
+
+    <h3>Telefone dos Dois Lados</h3>
+    <p>Indica que tanto a transportadora quanto o embarcador possuem pelo menos um número de telefone cadastrado no sistema.</p>
+
+    <h3>WhatsApp Possível</h3>
+    <p>Classificação atribuída automaticamente a números de telefone celular estruturados que são elegíveis para o envio de mensagens no aplicativo WhatsApp. <strong>Não significa WhatsApp ativo ou confirmado.</strong></p>
+
+    <h2>3. Como Acessar a Ferramenta</h2>
+    <p>1. Abra o seu navegador web (Chrome, Firefox, Safari ou Edge).<br>
+    2. Acesse a URL: <strong>http://127.0.0.1:5055</strong><br>
+    3. Caso esteja acessando a ferramenta de forma remota através de um túnel SSH (redirecionamento de porta), <strong>mantenha o seu terminal de comando aberto</strong>. Caso o terminal seja fechado, a conexão será recusada.</p>
+
+    <h3>Comandos Úteis de Manutenção (Servidor):</h3>
+    <pre><code># Verificar se a aplicação está ativa e operando
+sudo systemctl status wins-hub-log --no-pager
+
+# Reiniciar o serviço (caso ocorra lentidão ou travamento)
+sudo systemctl restart wins-hub-log</code></pre>
+
+    <h2>4. Dashboard Inicial (Visão Geral)</h2>
+    <p>O painel inicial apresenta um diagnóstico rápido da base comercial e estatísticas de contatos.</p>
+    <img src="manual/img/01_dashboard.png" alt="Dashboard Inicial">
+    <p><strong>Passo a Passo — Filtrar por Corredor:</strong><br>
+    1. Localize a barra de <strong>Filtros Globais</strong> no topo da página.<br>
+    2. Na opção <strong>Corredor</strong>, selecione o corredor de interesse (ex: <code>SP->DF</code>).<br>
+    3. Clique em <strong>Filtrar</strong>.<br>
+    4. Você será automaticamente redirecionado para a tela <code>/matches</code> com os resultados filtrados.</p>
+
+    <h2>5. Tela de Matches</h2>
+    <p>Esta tela concentra a listagem detalhada de todas as combinações sugeridas pela ferramenta.</p>
+    <img src="manual/img/02_matches.png" alt="Tela de Matches">
+    <p><strong>Passo a Passo — Acompanhamento Comercial:</strong><br>
+    1. Na linha do match escolhido, clique no botão de <strong>lápis (Editar)</strong> no canto direito.<br>
+    2. O painel lateral abrirá exibindo o histórico de prospecções.<br>
+    3. No painel, você verá telefones normalizados e nomes dos sócios/administradores (se disponíveis).<br>
+    4. Realize o contato manual via ligação ou WhatsApp.<br>
+    5. Após o contato, altere o <strong>Status Comercial do Match</strong> no formulário do painel lateral.<br>
+    6. Registre observações sobre a negociação no campo de texto e clique em <strong>Salvar Negociação</strong>.</p>
+
+    <h2>6. Filtros de Matches</h2>
+    <p>A barra de filtros de <code>/matches</code> permite segmentar a base em tempo real para encontrar as oportunidades operacionais ideais.</p>
+    <img src="manual/img/03_matches_sp_df.png" alt="Matches Filtrados SP->DF">
+
+    <h2>7. Entendendo os Badges (Etiquetas Visuais)</h2>
+    <h3>📞 Cobertura de Contatos e Telefones</h3>
+    <ul>
+      <li><span class="badge badge-success">Contato completo</span>: Ambas as pontas possuem dados mínimos e e-mails.</li>
+      <li><span class="badge badge-success">Tel. dos dois lados</span>: Ambas as pontas possuem telefone.</li>
+      <li><span class="badge badge-danger">Sem telefone</span>: Nenhuma das partes possui número de telefone.</li>
+      <li><span class="badge badge-success">WhatsApp possível</span>: Pelo menos um celular brasileiro válido.</li>
+    </ul>
+
+    <h3>📊 Completude de Dados</h3>
+    <ul>
+      <li><span class="badge badge-success">Dados completos</span>: Transportadora e embarcador atingiram 100% de completude.</li>
+      <li><span class="badge badge-warning">Faltando endereço</span>: Dados de CEP ou localidade incompletos.</li>
+      <li><span class="badge badge-info">Faltando QSA</span>: Dados societários não identificados.</li>
+    </ul>
+
+    <h3>📍 Geografia Auxiliar</h3>
+    <ul>
+      <li><span class="badge badge-success">Mesmo município</span>: Transportadora e embarcador na mesma cidade.</li>
+      <li><span class="badge badge-success">Próximo (até 30 km)</span>: Curtíssima distância logística.</li>
+      <li><span class="badge badge-warning">Médio (30 a 150 km)</span>: Distância padrão operacional.</li>
+      <li><span class="badge badge-danger">Distante (&gt; 150 km)</span>: Grande distância de deslocamento.</li>
+    </ul>
+
+    <h2>8. Kanban (Funil Comercial)</h2>
+    <p>A tela de Kanban fornece uma visão dinâmica e visual das negociações.</p>
+    <img src="manual/img/04_kanban.png" alt="Quadro Kanban">
+
+    <h2>9. Métricas Operacionais</h2>
+    <p>Concentra os relatórios analíticos de BI da operação de fretes.</p>
+    <img src="manual/img/05_metricas.png" alt="Relatórios de Métricas">
+
+    <h2>10. Fila Comercial Inteligente</h2>
+    <p>Esta funcionalidade prioriza os melhores matches da base de dados sem interagir com as empresas. Os arquivos estão em <code>exports/comercial/</code>:</p>
+    <ul>
+      <li><code>fila_piloto_A_plus.csv</code></li>
+      <li><code>fila_telefone_dois_lados.csv</code></li>
+      <li><code>fila_completar_dados_antes.csv</code></li>
+    </ul>
+
+    <h2>11. Operação Piloto 100 SP->DF</h2>
+    <p>O corredor <strong>SP->DF</strong> foi qualificado como o mais maduro. Os arquivos estão em <code>exports/pilotos/</code>:</p>
+    <ul>
+      <li><code>piloto_100_sp_df.csv</code></li>
+      <li><code>controle_manual_piloto_100_sp_df.csv</code></li>
+      <li><code>ROTEIRO_ABORDAGEM_PILOTO_100_SP_DF.md</code></li>
+    </ul>
+
+    <h2>12. Roteiro de Abordagem Manual</h2>
+    <p><strong>Mensagem Inicial para Transportadora (WhatsApp/Telefone):</strong><br>
+    <em>"Olá, tudo bem? Meu nome é [Seu Nome], da WiNS Hub Log. Estamos validando oportunidades de rotas e frete de retorno no corredor SP→DF. Vocês costumam atender esse trecho ou têm interesse em posicionar caminhões nessa rota?"</em></p>
+
+    <h2>13. Regras de Segurança e Boas Práticas</h2>
+    <div class="alert-warning">
+      <p><strong>NUNCA faça o seguinte:</strong><br>
+      1. Não faça disparos em massa.<br>
+      2. Não promete carga fechada e garantida.<br>
+      3. Não ofereça estimativas de tarifas sem confirmar com o embarcador.<br>
+      4. Não compartilhe dados societários ou CNPJ entre as pontas.</p>
+    </div>
+
+    <h2>14. Fluxo Operacional Recomendado</h2>
+    <p>1. Iniciar o dia analisando as Métricas.<br>
+    2. Identificar matches A+ na tela de Matches.<br>
+    3. Fazer contato manual com a transportadora.<br>
+    4. Se houver interesse, iniciar validação com o embarcador correspondente.<br>
+    5. Atualizar o Kanban e registrar as notas comerciais.</p>
+
+    <h2>15. Manutenção Básica</h2>
+    <pre><code>python scripts/auditar_telefones_matches.py
+python scripts/auditar_completude_dados.py
+python scripts/backup_db.py</code></pre>
+
+    <h2>16. Problemas Comuns e Como Resolver</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Problema</th>
+          <th>Causa Provável</th>
+          <th>Como Resolver</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Página não abre</td>
+          <td>Gunicorn inativo no servidor</td>
+          <td>Execute <code>sudo systemctl restart wins-hub-log</code></td>
+        </tr>
+        <tr>
+          <td>Conexão Recusada</td>
+          <td>Túnel SSH fechado</td>
+          <td>Reabra o terminal SSH com a porta redirecionada</td>
+        </tr>
+        <tr>
+          <td>Filtro lento</td>
+          <td>Banco travado (SQLite Lock)</td>
+          <td>Evite rodar scripts durante a operação de prospecção</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>17. Glossário</h2>
+    <ul>
+      <li><strong>Embarcador:</strong> Empresa detentora da carga.</li>
+      <li><strong>Transportadora:</strong> Prestador de serviços com a frota.</li>
+      <li><strong>Corredor:</strong> Rota de origem e destino (ex: SP->DF).</li>
+    </ul>
+
+    <h2>18. Checklist Diário do Operador</h2>
+    <ul>
+      <li>[ ] App abrindo em `/matches`</li>
+      <li>[ ] Planilha de controle do piloto acessível</li>
+      <li>[ ] Abordagens estritamente manuais concluídas</li>
+      <li>[ ] Kanban atualizado ao final do dia</li>
+    </ul>
+  </div>
+</body>
+</html>
