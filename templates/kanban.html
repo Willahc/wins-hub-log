@@ -92,7 +92,7 @@
 
 {# ── Filtros do Kanban ────────────────────────────────────────────────────── #}
 <div class="filter-bar p-3 mb-3">
-  <form method="GET" class="row g-2 align-items-end">
+  <form method="GET" action="{{ url_for('kanban_quadro') }}" class="row g-2 align-items-end">
     <div class="col-6 col-md-2">
       <label class="form-label small text-muted mb-1">Corredor</label>
       <select name="corredor" class="form-select form-select-sm">
@@ -245,10 +245,10 @@
         {% endif %}
 
         {# Badges Específicas de Telefone no Card Kanban #}
-        {% set t_tel = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()) if m.transportadora else False %}
-        {% set e_tel = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()) if m.embarcador else False %}
-        {% set t_wa = m.transportadora.whatsapp_possivel if m.transportadora else False %}
-        {% set e_wa = m.embarcador.whatsapp_possivel if m.embarcador else False %}
+        {% set t_tel = (m.transportadora and ((m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()))) or False %}
+        {% set e_tel = (m.embarcador and ((m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()))) or False %}
+        {% set t_wa = (m.transportadora and m.transportadora.whatsapp_possivel) or False %}
+        {% set e_wa = (m.embarcador and m.embarcador.whatsapp_possivel) or False %}
         
         <div class="mb-2 d-flex flex-column gap-1" style="font-size: 0.62rem;">
           {% if t_tel and e_tel %}

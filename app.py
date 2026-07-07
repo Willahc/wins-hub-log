@@ -201,10 +201,10 @@ def index():
 
     # D. Prospecções por canal
     prospeccao_por_canal = {
-        "WhatsApp": query_props.filter_by(canal="WhatsApp").count(),
-        "Ligação": query_props.filter_by(canal="Ligação").count(),
-        "E-mail": query_props.filter_by(canal="E-mail").count(),
-        "Outro": query_props.filter_by(canal="Outro").count()
+        "WhatsApp": query_props.filter(ProspeccaoLog.canal == "WhatsApp").count(),
+        "Ligação": query_props.filter(ProspeccaoLog.canal == "Ligação").count(),
+        "E-mail": query_props.filter(ProspeccaoLog.canal == "E-mail").count(),
+        "Outro": query_props.filter(ProspeccaoLog.canal == "Outro").count()
     }
 
     # Verificar se a base está 100% vazia

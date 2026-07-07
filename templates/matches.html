@@ -38,7 +38,7 @@
 
 {# ── Barra de filtros ─────────────────────────────────────────────────────── #}
 <div class="filter-bar p-3 mb-3">
-  <form method="GET" action="/matches" class="row g-2 align-items-end">
+  <form method="GET" action="{{ url_for('matches_lista') }}" class="row g-2 align-items-end">
     <div class="col-12 col-md-3">
       <label class="form-label small text-muted mb-1">Buscar</label>
       <input type="text" name="q" class="form-control form-control-sm"
@@ -199,11 +199,11 @@
           </div>
           
           {# Score Comercial Inteligente #}
-          {% if m.score_prioridade_comercial is not none %}
+          {% if m.score_prioridade_comercial|default(none, true) is not none %}
             <div class="text-muted small mt-1" style="font-size: 0.65rem;">
-              Comercial: <strong class="text-warning">{{ m.score_prioridade_comercial }}</strong>
+              Comercial: <strong class="text-warning">{{ m.score_prioridade_comercial|default('', true) }}</strong>
               <span class="badge bg-warning bg-opacity-10 text-warning border border-warning" style="font-size: 0.58rem; padding: 1px 3px; font-weight: normal;">
-                {{ m.classe_prioridade_comercial }}
+                {{ m.classe_prioridade_comercial|default('', true) }}
               </span>
             </div>
           {% endif %}
@@ -224,10 +224,10 @@
           </div>
 
           {# Badges Específicas de Telefone (Validação de Telefones) #}
-          {% set t_tel = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()) if m.transportadora else False %}
-          {% set e_tel = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()) if m.embarcador else False %}
-          {% set t_wa = m.transportadora.whatsapp_possivel if m.transportadora else False %}
-          {% set e_wa = m.embarcador.whatsapp_possivel if m.embarcador else False %}
+          {% set t_tel = (m.transportadora and ((m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()))) or False %}
+          {% set e_tel = (m.embarcador and ((m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()))) or False %}
+          {% set t_wa = (m.transportadora and m.transportadora.whatsapp_possivel) or False %}
+          {% set e_wa = (m.embarcador and m.embarcador.whatsapp_possivel) or False %}
           
           <div class="mt-1 d-flex flex-wrap gap-1">
             {% if t_tel and e_tel %}
@@ -397,7 +397,7 @@
         <div class="offcanvas-header border-bottom" style="border-color:#334155 !important">
           <div>
             <h6 class="offcanvas-title mb-0">Match Comercial Preditivo</h6>
-            <small class="text-muted">Corredor: {{ m.corredor }} · Score Match: {{ m.score_match }} · Comercial: {{ m.score_prioridade_comercial or 'N/A' }} ({{ m.classe_prioridade_comercial or 'N/A' }})</small>
+            <small class="text-muted">Corredor: {{ m.corredor }} · Score Match: {{ m.score_match }} · Comercial: {{ m.score_prioridade_comercial|default('N/A', true) }} ({{ m.classe_prioridade_comercial|default('N/A', true) }})</small>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
