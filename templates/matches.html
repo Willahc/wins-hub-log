@@ -90,6 +90,18 @@
              placeholder="Score" value="{{ filtros.min_score }}" min="0" max="100">
     </div>
     <div class="col-6 col-md-2">
+      <label class="form-label small text-muted mb-1">Telefone</label>
+      <select name="telefone" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        <option value="dois_lados" {% if filtros.telefone == 'dois_lados' %}selected{% endif %}>Ambos lados c/ tel</option>
+        <option value="pelo_menos_um" {% if filtros.telefone == 'pelo_menos_um' %}selected{% endif %}>Pelo menos um lado</option>
+        <option value="sem_transp" {% if filtros.telefone == 'sem_transp' %}selected{% endif %}>Transportadora sem tel</option>
+        <option value="sem_embarcador" {% if filtros.telefone == 'sem_embarcador' %}selected{% endif %}>Embarcador sem tel</option>
+        <option value="sem_nenhum" {% if filtros.telefone == 'sem_nenhum' %}selected{% endif %}>Sem telefone nenhum</option>
+        <option value="whatsapp" {% if filtros.telefone == 'whatsapp' %}selected{% endif %}>WhatsApp possível</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
       <div class="form-check form-switch ms-1 mb-1">
         <input class="form-check-input" type="checkbox" name="fu_vencido" value="1" id="fuCheck"
                {% if filtros.fu_vencido == '1' %}checked{% endif %}>
@@ -176,8 +188,8 @@
           </div>
           
           {# Badge de Cobertura de Contatos (Tarefa /matches) #}
-          {% set t_has = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.email and m.transportadora.email.strip()) or (m.transportadora.socios and m.transportadora.socios.strip()) %}
-          {% set e_has = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.email and m.embarcador.email.strip()) or (m.embarcador.site and m.embarcador.site.strip()) %}
+          {% set t_has = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()) or (m.transportadora.email and m.transportadora.email.strip()) or (m.transportadora.socios and m.transportadora.socios.strip()) %}
+          {% set e_has = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()) or (m.embarcador.email and m.embarcador.email.strip()) or (m.embarcador.site and m.embarcador.site.strip()) %}
           <div class="mt-1">
             {% if t_has and e_has %}
               <span class="badge bg-success bg-opacity-75 text-white" style="font-size: 0.65rem;"><i class="bi bi-person-check-fill me-1"></i>Contato completo</span>
@@ -187,6 +199,44 @@
               <span class="badge bg-primary bg-opacity-75 text-white" style="font-size: 0.65rem;"><i class="bi bi-building me-1"></i>Contato embarcador</span>
             {% else %}
               <span class="badge bg-danger bg-opacity-75 text-white" style="font-size: 0.65rem;"><i class="bi bi-person-x-fill me-1"></i>Sem contato</span>
+            {% endif %}
+          </div>
+
+          {# Badges Específicas de Telefone (Validação de Telefones) #}
+          {% set t_tel = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()) if m.transportadora else False %}
+          {% set e_tel = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()) if m.embarcador else False %}
+          {% set t_wa = m.transportadora.whatsapp_possivel if m.transportadora else False %}
+          {% set e_wa = m.embarcador.whatsapp_possivel if m.embarcador else False %}
+          
+          <div class="mt-1 d-flex flex-wrap gap-1">
+            {% if t_tel and e_tel %}
+              <span class="badge bg-success bg-opacity-25 text-success border border-success" style="font-size: 0.62rem; padding: 2px 4px;">
+                <i class="bi bi-telephone-fill me-1"></i>Tel. dos dois lados
+              </span>
+            {% elif t_tel %}
+              <span class="badge bg-info bg-opacity-25 text-dark border border-info border-opacity-50" style="font-size: 0.62rem; padding: 2px 4px;">
+                <i class="bi bi-telephone me-1"></i>Tel. transportadora
+              </span>
+              <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50" style="font-size: 0.62rem; padding: 2px 4px;">
+                Sem tel. embarcador
+              </span>
+            {% elif e_tel %}
+              <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-50" style="font-size: 0.62rem; padding: 2px 4px;">
+                <i class="bi bi-telephone me-1"></i>Tel. embarcador
+              </span>
+              <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50" style="font-size: 0.62rem; padding: 2px 4px;">
+                Sem tel. transportadora
+              </span>
+            {% else %}
+              <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50" style="font-size: 0.62rem; padding: 2px 4px;">
+                <i class="bi bi-telephone-x me-1"></i>Sem telefone
+              </span>
+            {% endif %}
+            
+            {% if t_wa or e_wa %}
+              <span class="badge bg-success bg-opacity-25 text-success border border-success" style="font-size: 0.62rem; padding: 2px 4px;">
+                <i class="bi bi-whatsapp me-1"></i>WhatsApp possível
+              </span>
             {% endif %}
           </div>
 
@@ -337,14 +387,28 @@
             <div class="text-white fw-bold mb-1"><i class="bi bi-truck me-1 text-warning"></i>Transportadora (Oferta)</div>
             <div>{{ m.transportadora.razao_social or m.transportadora.nome_rntrc }}</div>
             <div class="text-muted">Local: {{ m.cidade_origem }}/{{ m.uf_origem }}</div>
-            {% if m.transportadora.telefone %}<div>Contato: <i class="bi bi-telephone text-success"></i> {{ m.transportadora.telefone }}</div>{% endif %}
+            {% if m.transportadora.telefone_normalizado or m.transportadora.telefone %}
+              <div>Contato: <i class="bi bi-telephone text-success"></i> 
+                {{ m.transportadora.telefone_normalizado or m.transportadora.telefone }}
+                {% if m.transportadora.whatsapp_possivel %}
+                  <span class="badge bg-success bg-opacity-25 text-success border border-success ms-1" style="font-size: 0.6rem;">WA</span>
+                {% endif %}
+              </div>
+            {% endif %}
             
             <hr class="my-2 border-secondary">
             
             <div class="text-white fw-bold mb-1"><i class="bi bi-building me-1 text-warning"></i>Embarcador (Demanda)</div>
             <div>{{ m.embarcador.razao_social or m.embarcador.nome_fantasia }}</div>
             <div class="text-muted">Local: {{ m.cidade_destino }}/{{ m.uf_destino }}</div>
-            {% if m.embarcador.telefone %}<div>Contato: <i class="bi bi-telephone text-success"></i> {{ m.embarcador.telefone }}</div>{% endif %}
+            {% if m.embarcador.telefone_normalizado or m.embarcador.telefone %}
+              <div>Contato: <i class="bi bi-telephone text-success"></i> 
+                {{ m.embarcador.telefone_normalizado or m.embarcador.telefone }}
+                {% if m.embarcador.whatsapp_possivel %}
+                  <span class="badge bg-success bg-opacity-25 text-success border border-success ms-1" style="font-size: 0.6rem;">WA</span>
+                {% endif %}
+              </div>
+            {% endif %}
             {% if m.embarcador.email %}<div>E-mail: {{ m.embarcador.email }}</div>{% endif %}
           </div>
 
@@ -536,7 +600,7 @@
 
 {# ── Paginação ────────────────────────────────────────────────────────────── #}
 {% if total_pages and total_pages > 1 %}
-{% set qs %}corredor={{ filtros.corredor }}&prioridade={{ filtros.prioridade }}&status={{ filtros.status }}&uf_origem={{ filtros.uf_origem }}&uf_destino={{ filtros.uf_destino }}&min_score={{ filtros.min_score }}{% endset %}
+{% set qs %}corredor={{ filtros.corredor }}&prioridade={{ filtros.prioridade }}&status={{ filtros.status }}&uf_origem={{ filtros.uf_origem }}&uf_destino={{ filtros.uf_destino }}&min_score={{ filtros.min_score }}&telefone={{ filtros.telefone }}&q={{ filtros.q }}&fu_vencido={{ filtros.fu_vencido }}&temperatura={{ filtros.temperatura }}{% endset %}
 <nav class="mt-3 d-flex justify-content-center">
   <ul class="pagination pagination-sm mb-0">
     <li class="page-item {% if page <= 1 %}disabled{% endif %}">

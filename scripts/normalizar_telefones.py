@@ -2,11 +2,14 @@
 import os
 import sys
 import csv
+import argparse
+from datetime import datetime
 
+# Add root folder to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import app, db
-from models import Transportadora, EmbarcadorProvavel
+from models import Transportadora, EmbarcadorProvavel, MatchPreditivo
 
 def normalize_phone_number(phone_str):
     if not phone_str:
@@ -32,7 +35,7 @@ def normalize_phone_number(phone_str):
         ddd = digits[:2]
         local = digits[2:]
         first_digit = local[0]
-        # Se começar com 9 ou 8 (muitos celulares antigos começavam com 8 ou 9)
+        # Se começar com 9 ou 8 (celulares antigos)
         if first_digit in ("9", "8", "7"):
             tipo = "celular"
             whatsapp = True
@@ -45,12 +48,20 @@ def normalize_phone_number(phone_str):
     return phone_str, None, "desconhecido", False
 
 def main():
+    parser = argparse.ArgumentParser(description="Normalizador de telefones.")
+    parser.add_argument("--dry-run", action="store_true", help="Simulação sem gravar no banco de dados")
+    parser.add_argument("--only-matches", action="store_true", help="Normalizar apenas empresas presentes em matches")
+    args = parser.parse_args()
+    
     print("============================================================")
-    print("NORMALIZADOR DE TELEFONES")
+    if args.dry_run:
+        print("SIMULAÇÃO DE NORMALIZAÇÃO DE TELEFONES (DRY-RUN)")
+    else:
+        print("NORMALIZAÇÃO DE TELEFONES COMPLETA")
     print("============================================================")
     
-    os.makedirs("exports/completude", exist_ok=True)
-    output_path = "exports/completude/telefones_normalizados.csv"
+    os.makedirs("exports/telefones", exist_ok=True)
+    output_path = "exports/telefones/telefones_normalizados_matches.csv"
     
     fields = [
         "tipo_empresa", "id", "cnpj", "nome", "telefone_original", 
@@ -60,15 +71,32 @@ def main():
     
     t_updated = 0
     e_updated = 0
+    t_total_proc = 0
+    e_total_proc = 0
     
     with app.app_context():
+        # Obter IDs de empresas em matches se only-matches estiver ativo
+        t_ids = None
+        e_ids = None
+        if args.only_matches:
+            print("  Carregando empresas presentes em matches...")
+            matches = MatchPreditivo.query.all()
+            t_ids = set(m.transportadora_id for m in matches)
+            e_ids = set(m.embarcador_id for m in matches)
+            print(f"    Filtro ativo: {len(t_ids)} transportadoras e {len(e_ids)} embarcadores.")
+
         # 1. Transportadoras
-        print("  Normalizando Transportadoras...")
-        all_trans = Transportadora.query.all()
+        print("  Processando Transportadoras...")
+        query_t = Transportadora.query
+        if t_ids is not None:
+            query_t = query_t.filter(Transportadora.id.in_(t_ids))
+        
+        all_trans = query_t.all()
         for t in all_trans:
             if not t.telefone:
                 continue
                 
+            t_total_proc += 1
             orig = t.telefone
             norm, ddd, tipo, whatsapp = normalize_phone_number(orig)
             
@@ -78,35 +106,44 @@ def main():
                 "cnpj": t.cnpj,
                 "nome": t.razao_social or t.nome_rntrc or t.nome_fantasia or "",
                 "telefone_original": orig,
-                "telefone_normalizado": norm,
+                "telefone_normalizado": norm or "",
                 "ddd": ddd or "",
-                "tipo_telefone": tipo,
+                "tipo_telefone": tipo or "desconhecido",
                 "whatsapp_possivel": "Sim" if whatsapp else "Não"
             })
             
-            # Se for modificado e não estiver em dry-run (estamos rodando direto no banco)
             is_modified = False
-            if norm and t.telefone != norm:
-                note = f"\n[Telefone normalizado] Original: {orig}"
-                t.notas = (t.notas or "") + note
-                t.telefone = norm
-                is_modified = True
-                
-            if t.whatsapp_possivel != whatsapp:
-                t.whatsapp_possivel = whatsapp
-                is_modified = True
-                
-            if is_modified:
-                db.session.add(t)
-                t_updated += 1
-                
+            # Gravar nas novas colunas se não for dry-run
+            if not args.dry_run:
+                if t.telefone_normalizado != norm:
+                    t.telefone_normalizado = norm
+                    is_modified = True
+                if t.ddd != ddd:
+                    t.ddd = ddd
+                    is_modified = True
+                if t.tipo_telefone != tipo:
+                    t.tipo_telefone = tipo
+                    is_modified = True
+                if t.whatsapp_possivel != whatsapp:
+                    t.whatsapp_possivel = whatsapp
+                    is_modified = True
+                    
+                if is_modified:
+                    db.session.add(t)
+                    t_updated += 1
+                    
         # 2. Embarcadores
-        print("  Normalizando Embarcadores...")
-        all_embs = EmbarcadorProvavel.query.all()
+        print("  Processando Embarcadores...")
+        query_e = EmbarcadorProvavel.query
+        if e_ids is not None:
+            query_e = query_e.filter(EmbarcadorProvavel.id.in_(e_ids))
+            
+        all_embs = query_e.all()
         for e in all_embs:
             if not e.telefone:
                 continue
                 
+            e_total_proc += 1
             orig = e.telefone
             norm, ddd, tipo, whatsapp = normalize_phone_number(orig)
             
@@ -116,28 +153,33 @@ def main():
                 "cnpj": e.cnpj,
                 "nome": e.razao_social or e.nome_fantasia or "",
                 "telefone_original": orig,
-                "telefone_normalizado": norm,
+                "telefone_normalizado": norm or "",
                 "ddd": ddd or "",
-                "tipo_telefone": tipo,
+                "tipo_telefone": tipo or "desconhecido",
                 "whatsapp_possivel": "Sim" if whatsapp else "Não"
             })
             
             is_modified = False
-            if norm and e.telefone != norm:
-                note = f"\n[Telefone normalizado] Original: {orig}"
-                e.notas = (e.notas or "") + note
-                e.telefone = norm
-                is_modified = True
-                
-            if e.whatsapp_possivel != whatsapp:
-                e.whatsapp_possivel = whatsapp
-                is_modified = True
-                
-            if is_modified:
-                db.session.add(e)
-                e_updated += 1
-                
-        if t_updated > 0 or e_updated > 0:
+            if not args.dry_run:
+                if e.telefone_normalizado != norm:
+                    e.telefone_normalizado = norm
+                    is_modified = True
+                if e.ddd != ddd:
+                    e.ddd = ddd
+                    is_modified = True
+                if e.tipo_telefone != tipo:
+                    e.tipo_telefone = tipo
+                    is_modified = True
+                if e.whatsapp_possivel != whatsapp:
+                    e.whatsapp_possivel = whatsapp
+                    is_modified = True
+                    
+                if is_modified:
+                    db.session.add(e)
+                    e_updated += 1
+                    
+        # Commit e backup se modificado
+        if not args.dry_run and (t_updated > 0 or e_updated > 0):
             print("  Criando backup do banco de dados...")
             try:
                 from scripts.backup_db import run_backup
@@ -153,11 +195,20 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
         
+    # Relatório resumido
+    celulares = sum(1 for r in rows if r["tipo_telefone"] == "celular")
+    fixos = sum(1 for r in rows if r["tipo_telefone"] == "fixo")
+    desconhecidos = sum(1 for r in rows if r["tipo_telefone"] == "desconhecido")
+    
     print("\n=========================================")
-    print("NORMALIZAÇÃO DE TELEFONES CONCLUÍDA:")
-    print(f"Total de telefones normalizados: {len(rows):,}")
-    print(f"  Transportadoras atualizadas:   {t_updated:,}")
-    print(f"  Embarcadores atualizados:      {e_updated:,}")
+    print("RELATÓRIO DE NORMALIZAÇÃO DE TELEFONES:")
+    print(f"  Total analisados com telefone: {t_total_proc + e_total_proc:,}")
+    print(f"    Fixo:                        {fixos:,}")
+    print(f"    Celular / WhatsApp possível: {celulares:,}")
+    print(f"    Desconhecido / Inválido:     {desconhecidos:,}")
+    print(f"  Atualizados no banco:          {t_updated + e_updated:,}")
+    print(f"    Transportadoras:             {t_updated:,}")
+    print(f"    Embarcadores:                {e_updated:,}")
     print(f"CSV salvo em: {output_path}")
     print("=========================================")
 

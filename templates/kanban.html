@@ -217,8 +217,8 @@
 
         {# Exibição de contatos rápidos no card (apenas coluna Sugerido) #}
         {% if col_nome == 'Sugerido' %}
-          {% set t_has = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.email and m.transportadora.email.strip()) or (m.transportadora.socios and m.transportadora.socios.strip()) %}
-          {% set e_has = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.email and m.embarcador.email.strip()) or (m.embarcador.site and m.embarcador.site.strip()) %}
+          {% set t_has = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()) or (m.transportadora.email and m.transportadora.email.strip()) or (m.transportadora.socios and m.transportadora.socios.strip()) %}
+          {% set e_has = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()) or (m.embarcador.email and m.embarcador.email.strip()) or (m.embarcador.site and m.embarcador.site.strip()) %}
           
           <div class="mb-2 p-1 rounded bg-dark border border-secondary" style="font-size:0.65rem;">
             {% if not t_has and not e_has %}
@@ -226,16 +226,16 @@
             {% else %}
               <div class="text-white fw-bold mb-1" style="font-size: 0.65rem;"><i class="bi bi-person-lines-fill text-warning me-1"></i>Contatos:</div>
               {% if t_has %}
-                <div class="text-light text-truncate" title="Transp: {{ m.transportadora.telefone or '' }} {{ m.transportadora.email or '' }}">
+                <div class="text-light text-truncate" title="Transp: {{ m.transportadora.telefone_normalizado or m.transportadora.telefone or '' }} {{ m.transportadora.email or '' }}">
                   <strong>T:</strong> 
-                  {% if m.transportadora.telefone %}{{ m.transportadora.telefone }}{% endif %}
+                  {{ m.transportadora.telefone_normalizado or m.transportadora.telefone or '' }}
                   {% if m.transportadora.email %} · {{ m.transportadora.email }}{% endif %}
                 </div>
               {% endif %}
               {% if e_has %}
-                <div class="text-light text-truncate" title="Emb: {{ m.embarcador.telefone or '' }} {{ m.embarcador.email or '' }} {{ m.embarcador.site or '' }}">
+                <div class="text-light text-truncate" title="Emb: {{ m.embarcador.telefone_normalizado or m.embarcador.telefone or '' }} {{ m.embarcador.email or '' }} {{ m.embarcador.site or '' }}">
                   <strong>E:</strong> 
-                  {% if m.embarcador.telefone %}{{ m.embarcador.telefone }}{% endif %}
+                  {{ m.embarcador.telefone_normalizado or m.embarcador.telefone or '' }}
                   {% if m.embarcador.email %} · {{ m.embarcador.email }}{% endif %}
                   {% if m.embarcador.site %} · {{ m.embarcador.site }}{% endif %}
                 </div>
@@ -243,6 +243,38 @@
             {% endif %}
           </div>
         {% endif %}
+
+        {# Badges Específicas de Telefone no Card Kanban #}
+        {% set t_tel = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()) if m.transportadora else False %}
+        {% set e_tel = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()) if m.embarcador else False %}
+        {% set t_wa = m.transportadora.whatsapp_possivel if m.transportadora else False %}
+        {% set e_wa = m.embarcador.whatsapp_possivel if m.embarcador else False %}
+        
+        <div class="mb-2 d-flex flex-column gap-1" style="font-size: 0.62rem;">
+          {% if t_tel and e_tel %}
+            <span class="badge bg-success bg-opacity-25 text-success border border-success w-100 text-center py-1" style="font-size: 0.6rem;">
+              <i class="bi bi-telephone-fill me-1"></i>Tel. dos dois lados
+            </span>
+          {% elif t_tel %}
+            <span class="badge bg-info bg-opacity-25 text-dark border border-info w-100 text-center py-1" style="font-size: 0.6rem;">
+              <i class="bi bi-telephone me-1"></i>Tel. transportadora
+            </span>
+          {% elif e_tel %}
+            <span class="badge bg-primary bg-opacity-25 text-white border border-primary w-100 text-center py-1" style="font-size: 0.6rem;">
+              <i class="bi bi-telephone me-1"></i>Tel. embarcador
+            </span>
+          {% else %}
+            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger w-100 text-center py-1" style="font-size: 0.6rem;">
+              <i class="bi bi-telephone-x me-1"></i>Sem telefone
+            </span>
+          {% endif %}
+          
+          {% if t_wa or e_wa %}
+            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-50 w-100 text-center py-0.5" style="font-size: 0.58rem;">
+              <i class="bi bi-whatsapp me-1"></i>WhatsApp possível
+            </span>
+          {% endif %}
+        </div>
 
         {# Indicador Visual de Contato (Tarefa 10) #}
         <div class="mb-2">

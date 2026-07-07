@@ -468,4 +468,116 @@
   </div>
 </div>
 
+<div class="row g-3 mb-4">
+  {# Telefones dos Matches (Validação de Telefones) #}
+  <div class="col-12">
+    <div class="card bg-dark border-secondary">
+      <div class="card-header bg-transparent border-secondary text-white fw-bold py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-telephone-fill me-1 text-warning"></i>Telefones dos Matches</span>
+        <span class="badge bg-info bg-opacity-10 text-info border border-info" style="font-size: 0.7rem; font-weight: normal;">
+          Qualidade de Contato
+        </span>
+      </div>
+      <div class="card-body">
+        
+        {# Alerta explicativo / Nota de Contato #}
+        <div class="alert alert-info bg-info bg-opacity-10 text-info border border-info border-opacity-20 py-2 px-3 mb-3" style="font-size: 0.78rem;">
+          <i class="bi bi-info-circle-fill me-1"></i>
+          Match acionável significa pelo menos um contato disponível; telefone dos dois lados é uma métrica mais exigente.
+        </div>
+        
+        <div class="row g-2 text-center mb-3">
+          <div class="col-6 col-md-4">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Telefone Ambos Lados</div>
+              <h4 class="text-success fw-bold mb-1">{{ telefones.dois_lados }}</h4>
+              <small class="text-muted">{{ telefones.pct_dois_lados }}% dos matches</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-4">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Pelo Menos Um Lado</div>
+              <h4 class="text-info fw-bold mb-1">{{ telefones.pelo_menos_um }}</h4>
+              <small class="text-muted">{{ telefones.pct_pelo_menos_um }}% dos matches</small>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Sem Telefone Nenhum</div>
+              <h4 class="text-danger fw-bold mb-1">{{ telefones.nenhum }}</h4>
+              <small class="text-muted">{{ telefones.pct_nenhum }}% dos matches</small>
+            </div>
+          </div>
+        </div>
+        
+        <div class="row g-3">
+          {# WhatsApp & Ausentes #}
+          <div class="col-12 col-md-6">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-white fw-bold mb-2 pb-1 border-bottom border-secondary small">
+                <i class="bi bi-whatsapp me-1 text-success"></i>WhatsApp e Telefones Ausentes em Matches
+              </div>
+              <div class="d-flex flex-column gap-2" style="font-size: 0.8rem;">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span>Transportadoras c/ WhatsApp Provável</span>
+                  <span class="fw-bold text-success">{{ telefones.t_whatsapp }}</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span>Embarcadores c/ WhatsApp Provável</span>
+                  <span class="fw-bold text-success">{{ telefones.e_whatsapp }}</span>
+                </div>
+                <hr class="my-1 border-secondary">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span>Transportadoras sem Telefone</span>
+                  <span class="fw-bold text-danger">{{ telefones.t_sem_tel }}</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span>Embarcadores sem Telefone</span>
+                  <span class="fw-bold text-danger">{{ telefones.e_sem_tel }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {# Cobertura de Telefones por Corredor #}
+          <div class="col-12 col-md-6">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-white fw-bold mb-2 pb-1 border-bottom border-secondary small">
+                <i class="bi bi-signpost-split-fill me-1 text-warning"></i>Cobertura de Telefones por Corredor
+              </div>
+              <div class="table-responsive" style="max-height: 200px;">
+                <table class="table table-dark table-sm table-borderless mb-0" style="font-size: 0.75rem;">
+                  <thead>
+                    <tr class="text-muted border-bottom border-secondary" style="font-size: 0.7rem;">
+                      <th>Corredor</th>
+                      <th>Matches</th>
+                      <th>% Transp</th>
+                      <th>% Embarc</th>
+                      <th>Ambos Lados</th>
+                      <th>Sem Tel</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for corr, data in telefones.corredores.items() %}
+                      <tr>
+                        <td class="fw-semibold text-white">{{ corr }}</td>
+                        <td>{{ data.total_matches }}</td>
+                        <td class="text-info">{{ data.pct_t }}%</td>
+                        <td class="text-primary">{{ data.pct_e }}%</td>
+                        <td class="text-success">{{ data.ambos }}</td>
+                        <td class="text-danger">{{ data.nenhum }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}

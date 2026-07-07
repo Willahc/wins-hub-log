@@ -875,6 +875,7 @@ def matches_lista():
     min_score  = request.args.get("min_score", "").strip()
     fu_vencido = request.args.get("fu_vencido", "")
     busca      = request.args.get("q", "").strip()
+    telefone_filtro = request.args.get("telefone", "")
 
     try:
         page = max(1, int(request.args.get("page", "1")))
@@ -911,6 +912,27 @@ def matches_lista():
         from datetime import datetime
         data_hoje_str = datetime.utcnow().strftime("%Y-%m-%d")
         query = query.filter(MatchPreditivo.data_proxima_acao != "", MatchPreditivo.data_proxima_acao <= data_hoje_str)
+
+    if telefone_filtro:
+        # Join se não estiver feito
+        if not busca:
+            query = query.join(Transportadora, MatchPreditivo.transportadora).join(EmbarcadorProvavel, MatchPreditivo.embarcador)
+            
+        t_has_phone = db.or_(Transportadora.telefone.isnot(None), Transportadora.telefone != "", Transportadora.telefone_normalizado.isnot(None), Transportadora.telefone_normalizado != "")
+        e_has_phone = db.or_(EmbarcadorProvavel.telefone.isnot(None), EmbarcadorProvavel.telefone != "", EmbarcadorProvavel.telefone_normalizado.isnot(None), EmbarcadorProvavel.telefone_normalizado != "")
+        
+        if telefone_filtro == "dois_lados":
+            query = query.filter(t_has_phone, e_has_phone)
+        elif telefone_filtro == "pelo_menos_um":
+            query = query.filter(db.or_(t_has_phone, e_has_phone))
+        elif telefone_filtro == "sem_transp":
+            query = query.filter(db.not_(t_has_phone))
+        elif telefone_filtro == "sem_embarcador":
+            query = query.filter(db.not_(e_has_phone))
+        elif telefone_filtro == "sem_nenhum":
+            query = query.filter(db.not_(t_has_phone), db.not_(e_has_phone))
+        elif telefone_filtro == "whatsapp":
+            query = query.filter(db.or_(Transportadora.whatsapp_possivel == True, EmbarcadorProvavel.whatsapp_possivel == True))
 
     # Ordenar por maior score de match decrescente
     query = query.order_by(MatchPreditivo.score_match.desc())
@@ -974,7 +996,8 @@ def matches_lista():
             uf_destino=uf_destino,
             min_score=min_score,
             fu_vencido=fu_vencido,
-            q=busca
+            q=busca,
+            telefone=telefone_filtro
         ),
         ufs_origem=ufs_origem, ufs_destino=ufs_destino
     )
@@ -1417,6 +1440,95 @@ def metricas_comerciais():
         "dist_media_corredor": dist_media_corredor
     }
 
+    # ──── Métricas de Telefones (Validação de Telefones) ────
+    t_ids_m = set(m.transportadora_id for m in matches_geo)
+    e_ids_m = set(m.embarcador_id for m in matches_geo)
+    
+    t_m_list = Transportadora.query.filter(Transportadora.id.in_(t_ids_m)).all()
+    e_m_list = EmbarcadorProvavel.query.filter(EmbarcadorProvavel.id.in_(e_ids_m)).all()
+    
+    def local_has_phone(emp):
+        if not emp: return False
+        return bool((emp.telefone and emp.telefone.strip()) or (emp.telefone_normalizado and emp.telefone_normalizado.strip()))
+        
+    t_m_sem_tel = sum(1 for t in t_m_list if not local_has_phone(t))
+    t_m_com_wa = sum(1 for t in t_m_list if t.whatsapp_possivel)
+    
+    e_m_sem_tel = sum(1 for e in e_m_list if not local_has_phone(e))
+    e_m_com_wa = sum(1 for e in e_m_list if e.whatsapp_possivel)
+    
+    tel_dois_lados = 0
+    tel_pelo_menos_um = 0
+    tel_nenhum = 0
+    
+    corredor_tels = {}
+    
+    for m in matches_geo:
+        t = m.transportadora
+        e = m.embarcador
+        
+        t_has = local_has_phone(t)
+        e_has = local_has_phone(e)
+        
+        corr = m.corredor or "Indefinido"
+        if corr not in corredor_tels:
+            corredor_tels[corr] = {"t_tel": set(), "e_tel": set(), "ambos": 0, "um": 0, "nenhum": 0, "tot": 0, "t_tot": set(), "e_tot": set()}
+            
+        corredor_tels[corr]["tot"] += 1
+        if t:
+            corredor_tels[corr]["t_tot"].add(t.id)
+            if t_has:
+                corredor_tels[corr]["t_tel"].add(t.id)
+        if e:
+            corredor_tels[corr]["e_tot"].add(e.id)
+            if e_has:
+                corredor_tels[corr]["e_tel"].add(e.id)
+                
+        if t_has and e_has:
+            tel_dois_lados += 1
+            corredor_tels[corr]["ambos"] += 1
+        if t_has or e_has:
+            tel_pelo_menos_um += 1
+            corredor_tels[corr]["um"] += 1
+        else:
+            tel_nenhum += 1
+            corredor_tels[corr]["nenhum"] += 1
+            
+    corredores_tels_formatted = {}
+    for corr, data in corredor_tels.items():
+        t_unicas = len(data["t_tot"])
+        e_unicas = len(data["e_tot"])
+        t_tel_unicas = len(data["t_tel"])
+        e_tel_unicas = len(data["e_tel"])
+        
+        pct_t = round((t_tel_unicas / t_unicas) * 100, 1) if t_unicas > 0 else 0.0
+        pct_e = round((e_tel_unicas / e_unicas) * 100, 1) if e_unicas > 0 else 0.0
+        
+        corredores_tels_formatted[corr] = {
+            "total_matches": data["tot"],
+            "t_unicas": t_unicas,
+            "e_unicas": e_unicas,
+            "pct_t": pct_t,
+            "pct_e": pct_e,
+            "ambos": data["ambos"],
+            "um": data["um"],
+            "nenhum": data["nenhum"]
+        }
+        
+    telefones_stats = {
+        "dois_lados": tel_dois_lados,
+        "pelo_menos_um": tel_pelo_menos_um,
+        "nenhum": tel_nenhum,
+        "t_sem_tel": t_m_sem_tel,
+        "e_sem_tel": e_m_sem_tel,
+        "t_whatsapp": t_m_com_wa,
+        "e_whatsapp": e_m_com_wa,
+        "pct_dois_lados": round((tel_dois_lados / total_geo) * 100, 1) if total_geo > 0 else 0.0,
+        "pct_pelo_menos_um": round((tel_pelo_menos_um / total_geo) * 100, 1) if total_geo > 0 else 0.0,
+        "pct_nenhum": round((tel_nenhum / total_geo) * 100, 1) if total_geo > 0 else 0.0,
+        "corredores": corredores_tels_formatted
+    }
+
     return render_template(
         "metricas.html",
         stats=stats_funil,
@@ -1428,7 +1540,8 @@ def metricas_comerciais():
         corredores=Config.CORREDORES,
         cobertura_contatos=cobertura_contatos,
         completude_dados=completude_dados,
-        geografia=geografia
+        geografia=geografia,
+        telefones=telefones_stats
     )
 
 

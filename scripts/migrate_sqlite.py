@@ -35,7 +35,10 @@ def migrate():
             ("fonte_geocodificacao", "TEXT"),
             ("data_geocodificacao", "TEXT"),
             ("endereco_normalizado", "TEXT"),
-            ("geocodificacao_status", "TEXT")
+            ("geocodificacao_status", "TEXT"),
+            ("telefone_normalizado", "TEXT"),
+            ("ddd", "TEXT"),
+            ("tipo_telefone", "TEXT")
         ],
         "embarcadores_provaveis": [
             ("socios", "TEXT"),
@@ -59,7 +62,10 @@ def migrate():
             ("fonte_geocodificacao", "TEXT"),
             ("data_geocodificacao", "TEXT"),
             ("endereco_normalizado", "TEXT"),
-            ("geocodificacao_status", "TEXT")
+            ("geocodificacao_status", "TEXT"),
+            ("telefone_normalizado", "TEXT"),
+            ("ddd", "TEXT"),
+            ("tipo_telefone", "TEXT")
         ],
         "matches_preditivos": [
             ("temperatura", "VARCHAR(20) DEFAULT 'Frio'"),

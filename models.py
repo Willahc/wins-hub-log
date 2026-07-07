@@ -42,6 +42,9 @@ class Transportadora(db.Model):
     endereco_completo           = db.Column(db.Text)
     email_validado              = db.Column(db.Boolean, default=False)
     site_validado               = db.Column(db.Boolean, default=False)
+    telefone_normalizado        = db.Column(db.String(50))
+    ddd                         = db.Column(db.String(5))
+    tipo_telefone               = db.Column(db.String(20))
 
     # Geografia
     latitude                    = db.Column(db.Float)
@@ -149,6 +152,9 @@ class EmbarcadorProvavel(db.Model):
     porte                       = db.Column(db.String(50))
     capital_social              = db.Column(db.Float)
     situacao_rf                 = db.Column(db.String(50))
+    telefone_normalizado        = db.Column(db.String(50))
+    ddd                         = db.Column(db.String(5))
+    tipo_telefone               = db.Column(db.String(20))
 
     # Geografia
     cep                         = db.Column(db.String(10))
