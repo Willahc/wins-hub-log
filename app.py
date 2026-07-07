@@ -861,6 +861,89 @@ def atualizar_embarcador_crm(embarcador_id):
 
 
 
+def calculate_commercial_score(m):
+    t = m.transportadora
+    e = m.embarcador
+    
+    sm = m.score_match or 0.0
+    if sm >= 95.0:
+        score_log = 45.0
+    elif sm >= 90.0:
+        score_log = 40.0
+    elif sm >= 85.0:
+        score_log = 34.0
+    else:
+        score_log = (sm / 85.0) * 34.0
+        
+    t_has_phone = bool((t.telefone and t.telefone.strip()) or (t.telefone_normalizado and t.telefone_normalizado.strip())) if t else False
+    e_has_phone = bool((e.telefone and e.telefone.strip()) or (e.telefone_normalizado and e.telefone_normalizado.strip())) if e else False
+    has_wa = (t.whatsapp_possivel if t else False) or (e.whatsapp_possivel if e else False)
+    
+    if t_has_phone and e_has_phone:
+        score_ac = 25.0
+    elif t_has_phone or e_has_phone:
+        score_ac = 18.0
+    else:
+        score_ac = 0.0
+        
+    if has_wa and (t_has_phone or e_has_phone):
+        score_ac = min(25.0, score_ac + 5.0)
+        
+    has_t_contact = bool(t and (t.telefone or t.email or t.socios))
+    has_e_contact = bool(e and (e.telefone or e.email or e.site))
+    t_score = t.score_completude or 0 if t else 0
+    e_score = e.score_completude or 0 if e else 0
+    
+    if has_t_contact and has_e_contact:
+        if t_score >= 80 and e_score >= 80:
+            score_comp = 15.0
+        else:
+            score_comp = 10.0
+    elif has_t_contact or has_e_contact:
+        score_comp = 6.0
+    else:
+        score_comp = 0.0
+        
+    prio_val = m.prioridade or "Média"
+    if prio_val == "Alta":
+        score_prio = 10.0
+    elif prio_val == "Média":
+        score_prio = 6.0
+    elif prio_val == "Baixa":
+        score_prio = 2.0
+    else:
+        score_prio = 6.0
+        
+    dist = m.distancia_km
+    prec = m.precisao_geografica_match
+    
+    if dist is None or prec == "insuficiente":
+        score_geo = 0.0
+    elif dist == 0.0 and prec == "cidade":
+        score_geo = 5.0
+    elif dist <= 30.0:
+        score_geo = 4.0
+    elif dist <= 150.0:
+        score_geo = 2.0
+    else:
+        score_geo = 0.0
+        
+    total_score = score_log + score_ac + score_comp + score_prio + score_geo
+    return round(total_score, 2)
+
+def get_class(score):
+    if score >= 90.0:
+        return "A+"
+    elif score >= 80.0:
+        return "A"
+    elif score >= 70.0:
+        return "B"
+    elif score >= 60.0:
+        return "C"
+    else:
+        return "D"
+
+
 # ─── Match Preditivo (Cargas de Retorno) ──────────────────────────────────────
 
 @app.route("/matches")
@@ -876,6 +959,7 @@ def matches_lista():
     fu_vencido = request.args.get("fu_vencido", "")
     busca      = request.args.get("q", "").strip()
     telefone_filtro = request.args.get("telefone", "")
+    ordenar    = request.args.get("ordenar", "score_match")
 
     try:
         page = max(1, int(request.args.get("page", "1")))
@@ -913,36 +997,97 @@ def matches_lista():
         data_hoje_str = datetime.utcnow().strftime("%Y-%m-%d")
         query = query.filter(MatchPreditivo.data_proxima_acao != "", MatchPreditivo.data_proxima_acao <= data_hoje_str)
 
-    if telefone_filtro:
-        # Join se não estiver feito
+    # ── Filtros de Telefone / Comercial ──
+    usar_memoria = (telefone_filtro in ("piloto_ideal", "classe_aplus", "classe_a", "classe_b")) or (ordenar == "score_comercial")
+
+    if usar_memoria:
+        # Carregar registros filtrados
         if not busca:
             query = query.join(Transportadora, MatchPreditivo.transportadora).join(EmbarcadorProvavel, MatchPreditivo.embarcador)
             
-        t_has_phone = db.or_(Transportadora.telefone.isnot(None), Transportadora.telefone != "", Transportadora.telefone_normalizado.isnot(None), Transportadora.telefone_normalizado != "")
-        e_has_phone = db.or_(EmbarcadorProvavel.telefone.isnot(None), EmbarcadorProvavel.telefone != "", EmbarcadorProvavel.telefone_normalizado.isnot(None), EmbarcadorProvavel.telefone_normalizado != "")
+        all_matches = query.all()
+        filtered_matches = []
+        for m in all_matches:
+            t = m.transportadora
+            e = m.embarcador
+            
+            t_has_phone = bool((t.telefone and t.telefone.strip()) or (t.telefone_normalizado and t.telefone_normalizado.strip())) if t else False
+            e_has_phone = bool((e.telefone and e.telefone.strip()) or (e.telefone_normalizado and e.telefone_normalizado.strip())) if e else False
+            t_has_norm = bool(t.telefone_normalizado and t.telefone_normalizado.strip()) if t else False
+            e_has_norm = bool(e.telefone_normalizado and e.telefone_normalizado.strip()) if e else False
+            
+            has_wa = (t.whatsapp_possivel if t else False) or (e.whatsapp_possivel if e else False)
+            has_t_contact = bool(t and (t.telefone or t.email or t.socios))
+            has_e_contact = bool(e and (e.telefone or e.email or e.site))
+            
+            m.score_prioridade_comercial = calculate_commercial_score(m)
+            m.classe_prioridade_comercial = get_class(m.score_prioridade_comercial)
+            
+            keep = True
+            if telefone_filtro == "classe_aplus":
+                keep = (m.classe_prioridade_comercial == "A+")
+            elif telefone_filtro == "classe_a":
+                keep = (m.classe_prioridade_comercial == "A")
+            elif telefone_filtro == "classe_b":
+                keep = (m.classe_prioridade_comercial == "B")
+            elif telefone_filtro == "piloto_ideal":
+                keep = (
+                    m.score_match >= 90.0 and
+                    t_has_phone and e_has_phone and
+                    (has_wa or (t_has_norm and e_has_norm)) and
+                    (has_t_contact and has_e_contact) and
+                    m.status == "Sugerido"
+                )
+                
+            if keep:
+                filtered_matches.append(m)
+                
+        # Ordenar
+        if ordenar == "score_comercial":
+            filtered_matches.sort(key=lambda x: (-x.score_prioridade_comercial, -x.score_match))
+        else:
+            filtered_matches.sort(key=lambda x: -x.score_match)
+            
+        PAGE_SIZE_MATCH = 50
+        total_matches = len(filtered_matches)
+        total_pages = max(1, (total_matches + PAGE_SIZE_MATCH - 1) // PAGE_SIZE_MATCH)
+        page = min(page, total_pages)
+        matches = filtered_matches[(page - 1) * PAGE_SIZE_MATCH : page * PAGE_SIZE_MATCH]
         
-        if telefone_filtro == "dois_lados":
-            query = query.filter(t_has_phone, e_has_phone)
-        elif telefone_filtro == "pelo_menos_um":
-            query = query.filter(db.or_(t_has_phone, e_has_phone))
-        elif telefone_filtro == "sem_transp":
-            query = query.filter(db.not_(t_has_phone))
-        elif telefone_filtro == "sem_embarcador":
-            query = query.filter(db.not_(e_has_phone))
-        elif telefone_filtro == "sem_nenhum":
-            query = query.filter(db.not_(t_has_phone), db.not_(e_has_phone))
-        elif telefone_filtro == "whatsapp":
-            query = query.filter(db.or_(Transportadora.whatsapp_possivel == True, EmbarcadorProvavel.whatsapp_possivel == True))
-
-    # Ordenar por maior score de match decrescente
-    query = query.order_by(MatchPreditivo.score_match.desc())
-
-    PAGE_SIZE_MATCH = 50
-    total_matches = query.count()
-    total_pages = max(1, (total_matches + PAGE_SIZE_MATCH - 1) // PAGE_SIZE_MATCH)
-    page = min(page, total_pages)
-    
-    matches = query.limit(PAGE_SIZE_MATCH).offset((page - 1) * PAGE_SIZE_MATCH).all()
+    else:
+        # SQL normal
+        if telefone_filtro:
+            if not busca:
+                query = query.join(Transportadora, MatchPreditivo.transportadora).join(EmbarcadorProvavel, MatchPreditivo.embarcador)
+                
+            t_has_phone = db.or_(Transportadora.telefone.isnot(None), Transportadora.telefone != "", Transportadora.telefone_normalizado.isnot(None), Transportadora.telefone_normalizado != "")
+            e_has_phone = db.or_(EmbarcadorProvavel.telefone.isnot(None), EmbarcadorProvavel.telefone != "", EmbarcadorProvavel.telefone_normalizado.isnot(None), EmbarcadorProvavel.telefone_normalizado != "")
+            
+            if telefone_filtro == "dois_lados":
+                query = query.filter(t_has_phone, e_has_phone)
+            elif telefone_filtro == "pelo_menos_um":
+                query = query.filter(db.or_(t_has_phone, e_has_phone))
+            elif telefone_filtro == "sem_transp":
+                query = query.filter(db.not_(t_has_phone))
+            elif telefone_filtro == "sem_embarcador":
+                query = query.filter(db.not_(e_has_phone))
+            elif telefone_filtro == "sem_nenhum":
+                query = query.filter(db.not_(t_has_phone), db.not_(e_has_phone))
+            elif telefone_filtro == "whatsapp":
+                query = query.filter(db.or_(Transportadora.whatsapp_possivel == True, EmbarcadorProvavel.whatsapp_possivel == True))
+                
+        query = query.order_by(MatchPreditivo.score_match.desc())
+        
+        PAGE_SIZE_MATCH = 50
+        total_matches = query.count()
+        total_pages = max(1, (total_matches + PAGE_SIZE_MATCH - 1) // PAGE_SIZE_MATCH)
+        page = min(page, total_pages)
+        matches = query.limit(PAGE_SIZE_MATCH).offset((page - 1) * PAGE_SIZE_MATCH).all()
+        
+        # Calcular para os exibidos na tela
+        for m in matches:
+            m.score_prioridade_comercial = calculate_commercial_score(m)
+            m.classe_prioridade_comercial = get_class(m.score_prioridade_comercial)
 
     # Preencher dados de prospecção em memória para a listagem
     for m in matches:
@@ -997,7 +1142,8 @@ def matches_lista():
             min_score=min_score,
             fu_vencido=fu_vencido,
             q=busca,
-            telefone=telefone_filtro
+            telefone=telefone_filtro,
+            ordenar=ordenar
         ),
         ufs_origem=ufs_origem, ufs_destino=ufs_destino
     )
