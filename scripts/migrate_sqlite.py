@@ -21,6 +21,28 @@ def migrate():
             ("corredor_alvo",    "TEXT"),
             ("origem_provavel",  "TEXT"),
             ("destino_provavel", "TEXT"),
+            ("data_enriquecimento_contato", "TEXT"),
+            ("fonte_contato", "TEXT"),
+            ("score_completude", "INTEGER"),
+            ("telefone_validado", "BOOLEAN"),
+            ("whatsapp_possivel", "BOOLEAN"),
+            ("endereco_completo", "TEXT"),
+            ("email_validado", "BOOLEAN"),
+            ("site_validado", "BOOLEAN")
+        ],
+        "embarcadores_provaveis": [
+            ("socios", "TEXT"),
+            ("data_enriquecimento_contato", "TEXT"),
+            ("fonte_contato", "TEXT"),
+            ("score_completude", "INTEGER"),
+            ("telefone_validado", "BOOLEAN"),
+            ("whatsapp_possivel", "BOOLEAN"),
+            ("endereco_completo", "TEXT"),
+            ("email_validado", "BOOLEAN"),
+            ("site_validado", "BOOLEAN"),
+            ("porte", "TEXT"),
+            ("capital_social", "REAL"),
+            ("situacao_rf", "TEXT")
         ],
         "matches_preditivos": [
             ("temperatura", "VARCHAR(20) DEFAULT 'Frio'"),

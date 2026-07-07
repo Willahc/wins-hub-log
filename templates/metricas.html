@@ -293,4 +293,74 @@
   </div>
 </div>
 
+<div class="row g-3 mb-4">
+  {# Completude de Dados #}
+  <div class="col-12">
+    <div class="card bg-dark border-secondary">
+      <div class="card-header bg-transparent border-secondary text-white fw-bold py-2">
+        <i class="bi bi-shield-check me-1 text-warning"></i>Completude de Dados Cadastrais
+      </div>
+      <div class="card-body">
+        <div class="row g-2 text-center">
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Completude Média Transp.</div>
+              <h4 class="text-info fw-bold mb-1">{{ completude_dados.t_avg }}%</h4>
+              <small class="text-muted">Média ponderada do cadastro</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Completude Média Embarc.</div>
+              <h4 class="text-primary fw-bold mb-1">{{ completude_dados.e_avg }}%</h4>
+              <small class="text-muted">Média ponderada do cadastro</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Matches Acionáveis</div>
+              <h4 class="text-success fw-bold mb-1">{{ completude_dados.acionaveis }}</h4>
+              <small class="text-muted">Contato em ambos os lados</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Dados 100% Completos</div>
+              <h4 class="text-warning fw-bold mb-1">{{ completude_dados.dados_completos }}</h4>
+              <small class="text-muted">Ambas empresas a 100%</small>
+            </div>
+          </div>
+        </div>
+        
+        <div class="row g-2 mt-2 text-center">
+          <div class="col-6 col-md-3">
+            <div class="p-2 bg-dark border border-secondary rounded">
+              <div class="text-muted small">Empresas sem E-mail</div>
+              <div class="fw-bold text-white fs-5">{{ completude_dados.sem_email }}</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-2 bg-dark border border-secondary rounded">
+              <div class="text-muted small">Empresas sem Site</div>
+              <div class="fw-bold text-white fs-5">{{ completude_dados.sem_site }}</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-2 bg-dark border border-secondary rounded">
+              <div class="text-muted small">Empresas com Telefone</div>
+              <div class="fw-bold text-white fs-5">{{ completude_dados.com_telefone }}</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-2 bg-dark border border-secondary rounded">
+              <div class="text-muted small">Empresas com Sócios/QSA</div>
+              <div class="fw-bold text-white fs-5">{{ completude_dados.com_socios }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}

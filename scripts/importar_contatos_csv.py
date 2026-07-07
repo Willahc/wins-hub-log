@@ -223,6 +223,7 @@ def main():
                             phones_filled_row = False
                             emails_filled_row = False
                             sites_filled_row = False
+                            socios_filled_row = False
                             skipped_existing_row = False
                             
                             # Telefone
@@ -254,6 +255,16 @@ def main():
                                         is_modified = True
                                 else:
                                     skipped_existing_row = True
+
+                            # Socios
+                            if socios_csv:
+                                if not e.socios:
+                                    socios_filled_row = True
+                                    if not dry_run:
+                                        e.socios = socios_csv
+                                        is_modified = True
+                                else:
+                                    skipped_existing_row = True
                                     
                             # Notas (Fonte/Obs)
                             info_notes = []
@@ -272,10 +283,11 @@ def main():
                             if phones_filled_row: phones_filled += 1
                             if emails_filled_row: emails_filled += 1
                             if sites_filled_row: sites_filled += 1
+                            if socios_filled_row: socios_filled += 1
                             
-                            if (phones_filled_row or emails_filled_row or sites_filled_row or is_modified) and not dry_run:
+                            if (phones_filled_row or emails_filled_row or sites_filled_row or socios_filled_row or is_modified) and not dry_run:
                                 db.session.add(e)
-                            elif skipped_existing_row and not (phones_filled_row or emails_filled_row or sites_filled_row):
+                            elif skipped_existing_row and not (phones_filled_row or emails_filled_row or sites_filled_row or socios_filled_row):
                                 lines_ignored_existing += 1
                         else:
                             lines_not_found += 1

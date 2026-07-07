@@ -189,6 +189,48 @@
               <span class="badge bg-danger bg-opacity-75 text-white" style="font-size: 0.65rem;"><i class="bi bi-person-x-fill me-1"></i>Sem contato</span>
             {% endif %}
           </div>
+
+          {# Indicadores de Completude de Dados (Tarefa 9) #}
+          {% set t = m.transportadora %}
+          {% set e = m.embarcador %}
+          
+          {% set t_comp = t.score_completude == 100 %}
+          {% set e_comp = e.score_completude == 100 %}
+          {% set has_all_data = t_comp and e_comp %}
+          
+          {% set missing_email_site = not t.email or not e.email or not e.site %}
+          {% set missing_contact = (not t.telefone and not t.email and not t.socios) or (not e.telefone and not e.email and not e.site) %}
+          {% set missing_address = not t.cep or not t.municipio or not t.uf or not e.endereco_completo or not e.cidade or not e.uf %}
+          {% set missing_qsa = not t.socios or not e.socios %}
+          
+          <div class="mt-1 d-flex flex-wrap gap-1" style="max-width: 250px;">
+            {% if has_all_data %}
+              <span class="badge bg-success bg-opacity-25 text-success border border-success" style="font-size: 0.62rem; padding: 2px 4px;">
+                <i class="bi bi-patch-check"></i> Dados completos
+              </span>
+            {% else %}
+              {% if missing_contact %}
+                <span class="badge bg-danger bg-opacity-25 text-danger border border-danger" style="font-size: 0.62rem; padding: 2px 4px;">
+                  Faltando contato
+                </span>
+              {% endif %}
+              {% if missing_email_site %}
+                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning" style="font-size: 0.62rem; padding: 2px 4px;">
+                  Faltando e-mail/site
+                </span>
+              {% endif %}
+              {% if missing_address %}
+                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning" style="font-size: 0.62rem; padding: 2px 4px;">
+                  Faltando endereço
+                </span>
+              {% endif %}
+              {% if missing_qsa %}
+                <span class="badge bg-secondary bg-opacity-25 text-light border border-secondary" style="font-size: 0.62rem; padding: 2px 4px;">
+                  Faltando QSA
+                </span>
+              {% endif %}
+            {% endif %}
+          </div>
           
           {# Cadência Comercial do Match (Tarefa 6) #}
           {% if m.data_proxima_acao %}

@@ -33,6 +33,16 @@ class Transportadora(db.Model):
     cep            = db.Column(db.String(10))
     data_abertura  = db.Column(db.String(10))
 
+    # Completude
+    data_enriquecimento_contato = db.Column(db.String(50))
+    fonte_contato               = db.Column(db.String(100))
+    score_completude            = db.Column(db.Integer)
+    telefone_validado           = db.Column(db.Boolean, default=False)
+    whatsapp_possivel           = db.Column(db.Boolean, default=False)
+    endereco_completo           = db.Column(db.Text)
+    email_validado              = db.Column(db.Boolean, default=False)
+    site_validado               = db.Column(db.Boolean, default=False)
+
     # CRM
     status_crm     = db.Column(db.String(20), default="nao_contatada", index=True)
     notas          = db.Column(db.Text)
@@ -116,6 +126,21 @@ class EmbarcadorProvavel(db.Model):
     site                  = db.Column(db.String(200))
     status_crm            = db.Column(db.String(20), default="nao_contatada", index=True)
     notas                 = db.Column(db.Text)
+
+    # Completude
+    socios                      = db.Column(db.Text)
+    data_enriquecimento_contato = db.Column(db.String(50))
+    fonte_contato               = db.Column(db.String(100))
+    score_completude            = db.Column(db.Integer)
+    telefone_validado           = db.Column(db.Boolean, default=False)
+    whatsapp_possivel           = db.Column(db.Boolean, default=False)
+    endereco_completo           = db.Column(db.Text)
+    email_validado              = db.Column(db.Boolean, default=False)
+    site_validado               = db.Column(db.Boolean, default=False)
+    porte                       = db.Column(db.String(50))
+    capital_social              = db.Column(db.Float)
+    situacao_rf                 = db.Column(db.String(50))
+
     created_at            = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at            = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -1301,6 +1301,40 @@ def metricas_comerciais():
         "pct_s": pct_s
     }
 
+    # Completude de Dados (Eficiente)
+    t_avg_score = db.session.query(db.func.avg(Transportadora.score_completude)).scalar() or 0.0
+    e_avg_score = db.session.query(db.func.avg(EmbarcadorProvavel.score_completude)).scalar() or 0.0
+    
+    t_sem_email = Transportadora.query.filter(db.or_(Transportadora.email == None, Transportadora.email == "")).count()
+    e_sem_email = EmbarcadorProvavel.query.filter(db.or_(EmbarcadorProvavel.email == None, EmbarcadorProvavel.email == "")).count()
+    total_sem_email = t_sem_email + e_sem_email
+    
+    total_sem_site = EmbarcadorProvavel.query.filter(db.or_(EmbarcadorProvavel.site == None, EmbarcadorProvavel.site == "")).count()
+    
+    t_com_tel = Transportadora.query.filter(Transportadora.telefone != None, Transportadora.telefone != "").count()
+    e_com_tel = EmbarcadorProvavel.query.filter(EmbarcadorProvavel.telefone != None, EmbarcadorProvavel.telefone != "").count()
+    total_com_tel = t_com_tel + e_com_tel
+    
+    t_com_soc = Transportadora.query.filter(Transportadora.socios != None, Transportadora.socios != "").count()
+    e_com_soc = EmbarcadorProvavel.query.filter(EmbarcadorProvavel.socios != None, EmbarcadorProvavel.socios != "").count()
+    total_com_soc = t_com_soc + e_com_soc
+    
+    matches_100 = MatchPreditivo.query.join(MatchPreditivo.transportadora).join(MatchPreditivo.embarcador).filter(
+        Transportadora.score_completude == 100,
+        EmbarcadorProvavel.score_completude == 100
+    ).count()
+    
+    completude_dados = {
+        "t_avg": round(t_avg_score, 1),
+        "e_avg": round(e_avg_score, 1),
+        "acionaveis": matches_completo,
+        "dados_completos": matches_100,
+        "sem_email": total_sem_email,
+        "sem_site": total_sem_site,
+        "com_telefone": total_com_tel,
+        "com_socios": total_com_soc
+    }
+
     return render_template(
         "metricas.html",
         stats=stats_funil,
@@ -1310,7 +1344,8 @@ def metricas_comerciais():
         followups=followups,
         hoje=hoje,
         corredores=Config.CORREDORES,
-        cobertura_contatos=cobertura_contatos
+        cobertura_contatos=cobertura_contatos,
+        completude_dados=completude_dados
     )
 
 
