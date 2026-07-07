@@ -1335,6 +1335,88 @@ def metricas_comerciais():
         "com_socios": total_com_soc
     }
 
+    # Calcular métricas geográficas (Validação Geográfica)
+    matches_geo = MatchPreditivo.query.all()
+    total_geo = len(matches_geo)
+    
+    com_score = 0
+    sem_score = 0
+    
+    faixas = {
+        "mesmo_municipio": 0,
+        "ate_30": 0,
+        "ate_150": 0,
+        "acima_150": 0,
+        "insuficiente": 0
+    }
+    
+    confiabilidade = {
+        "alta": 0,
+        "media": 0,
+        "baixa": 0,
+        "insuficiente": 0
+    }
+    
+    corredor_dists = {}
+    
+    for m in matches_geo:
+        t = m.transportadora
+        e = m.embarcador
+        
+        if m.score_geografico is not None:
+            com_score += 1
+            
+            # Faixas
+            if m.distancia_km == 0 and m.precisao_geografica_match == 'cidade':
+                faixas["mesmo_municipio"] += 1
+            elif m.distancia_km <= 30:
+                faixas["ate_30"] += 1
+            elif m.distancia_km <= 150:
+                faixas["ate_150"] += 1
+            else:
+                faixas["acima_150"] += 1
+                
+            # Confiabilidade
+            t_prec = t.precisao_geocodificacao or "cidade" if t else "cidade"
+            e_prec = e.precisao_geocodificacao or "cidade" if e else "cidade"
+            
+            if t_prec in ("endereco", "cep") and e_prec in ("endereco", "cep"):
+                confiabilidade["alta"] += 1
+            elif (t_prec in ("endereco", "cep") and e_prec == "cidade") or (e_prec in ("endereco", "cep") and t_prec == "cidade"):
+                confiabilidade["media"] += 1
+            else:
+                confiabilidade["baixa"] += 1
+                
+            # Corredor
+            corr = m.corredor or "Indefinido"
+            if corr not in corredor_dists:
+                corredor_dists[corr] = []
+            corredor_dists[corr].append(m.distancia_km)
+        else:
+            sem_score += 1
+            faixas["insuficiente"] += 1
+            confiabilidade["insuficiente"] += 1
+            
+    # Distância média por corredor
+    dist_media_corredor = {}
+    for corr, dists in corredor_dists.items():
+        if dists:
+            dist_media_corredor[corr] = round(sum(dists)/len(dists), 1)
+        else:
+            dist_media_corredor[corr] = 0.0
+            
+    geografia = {
+        "com_score": com_score,
+        "sem_score": sem_score,
+        "pct_com_score": round((com_score / total_geo) * 100, 1) if total_geo > 0 else 0.0,
+        "pct_sem_score": round((sem_score / total_geo) * 100, 1) if total_geo > 0 else 0.0,
+        "faixas": faixas,
+        "pct_faixas": {k: round((v / total_geo) * 100, 1) if total_geo > 0 else 0.0 for k, v in faixas.items()},
+        "confiabilidade": confiabilidade,
+        "pct_confiabilidade": {k: round((v / total_geo) * 100, 1) if total_geo > 0 else 0.0 for k, v in confiabilidade.items()},
+        "dist_media_corredor": dist_media_corredor
+    }
+
     return render_template(
         "metricas.html",
         stats=stats_funil,
@@ -1345,7 +1427,8 @@ def metricas_comerciais():
         hoje=hoje,
         corredores=Config.CORREDORES,
         cobertura_contatos=cobertura_contatos,
-        completude_dados=completude_dados
+        completude_dados=completude_dados,
+        geografia=geografia
     )
 
 

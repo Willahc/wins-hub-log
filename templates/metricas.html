@@ -360,6 +360,111 @@
         </div>
       </div>
     </div>
+</div>
+
+<div class="row g-3 mb-4">
+  {# Geografia dos Matches (Validação Geográfica) #}
+  <div class="col-12">
+    <div class="card bg-dark border-secondary">
+      <div class="card-header bg-transparent border-secondary text-white fw-bold py-2 d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-geo-alt-fill me-1 text-warning"></i>Geografia dos Matches</span>
+        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning" style="font-size: 0.7rem; font-weight: normal;">
+          Apenas Informativo
+        </span>
+      </div>
+      <div class="card-body">
+        
+        {# Alerta explicativo / Nota de Confiabilidade #}
+        <div class="alert alert-warning bg-warning bg-opacity-10 text-warning border border-warning border-opacity-20 py-2 px-3 mb-3" style="font-size: 0.78rem;">
+          <i class="bi bi-info-circle-fill me-1"></i>
+          <strong>Nota de Confiabilidade:</strong> O score geográfico é estimado por centroide municipal na maior parte da base. Não é utilizado como ranking principal de matches.
+        </div>
+        
+        <div class="row g-2 text-center mb-3">
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Score Geo. Calculado</div>
+              <h4 class="text-success fw-bold mb-1">{{ geografia.com_score }}</h4>
+              <small class="text-muted">{{ geografia.pct_com_score }}% dos matches</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Geografia Insuficiente</div>
+              <h4 class="text-danger fw-bold mb-1">{{ geografia.sem_score }}</h4>
+              <small class="text-muted">{{ geografia.pct_sem_score }}% dos matches</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Confiabilidade Baixa</div>
+              <h4 class="text-warning fw-bold mb-1">{{ geografia.confiabilidade.baixa }}</h4>
+              <small class="text-muted">Apenas Cidade/UF</small>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-muted small mb-1">Confiabilidade Alta/Média</div>
+              <h4 class="text-info fw-bold mb-1">{{ geografia.confiabilidade.alta + geografia.confiabilidade.media }}</h4>
+              <small class="text-muted">Precisão CEP/Rua</small>
+            </div>
+          </div>
+        </div>
+        
+        <div class="row g-3">
+          {# Faixas de Distância #}
+          <div class="col-12 col-md-6">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-white fw-bold mb-2 pb-1 border-bottom border-secondary small">
+                <i class="bi bi-bar-chart-fill me-1 text-warning"></i>Matches por Faixa de Distância
+              </div>
+              <div class="d-flex flex-column gap-2" style="font-size: 0.8rem;">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span>Mesmo município (0 km)</span>
+                  <span class="fw-bold text-success">{{ geografia.faixas.mesmo_municipio }} <small class="text-muted">({{ geografia.pct_faixas.mesmo_municipio }}%)</small></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span>Próximo (até 30 km)</span>
+                  <span class="fw-bold text-success">{{ geografia.faixas.ate_30 }} <small class="text-muted">({{ geografia.pct_faixas.ate_30 }}%)</small></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span>Médio (30 a 150 km)</span>
+                  <span class="fw-bold text-warning">{{ geografia.faixas.ate_150 }} <small class="text-muted">({{ geografia.pct_faixas.ate_150 }}%)</small></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span>Distante (acima de 150 km)</span>
+                  <span class="fw-bold text-danger">{{ geografia.faixas.acima_150 }} <small class="text-muted">({{ geografia.pct_faixas.acima_150 }}%)</small></span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span>Insuficiente</span>
+                  <span class="fw-bold text-muted">{{ geografia.faixas.insuficiente }} <small class="text-muted">({{ geografia.pct_faixas.insuficiente }}%)</small></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {# Distância Média por Corredor #}
+          <div class="col-12 col-md-6">
+            <div class="p-3 bg-dark border border-secondary rounded h-100">
+              <div class="text-white fw-bold mb-2 pb-1 border-bottom border-secondary small">
+                <i class="bi bi-signpost-split-fill me-1 text-warning"></i>Distância Média por Corredor
+              </div>
+              <div class="d-flex flex-column gap-2" style="font-size: 0.8rem;">
+                {% for corr, media in geografia.dist_media_corredor.items() %}
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span>{{ corr }}</span>
+                    <span class="fw-bold text-white">{{ media }} km</span>
+                  </div>
+                {% else %}
+                  <div class="text-muted text-center py-3">Sem dados geográficos</div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
   </div>
 </div>
 

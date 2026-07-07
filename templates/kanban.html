@@ -192,6 +192,29 @@
           <span>{{ m.cidade_destino }}/{{ m.uf_destino }}</span>
         </div>
 
+        {# Badge Geográfico no Card Kanban #}
+        <div class="mb-2" style="font-size: 0.65rem;">
+          {% if m.distancia_km is not none and m.precisao_geografica_match != 'insuficiente' %}
+            {% if m.distancia_km == 0 and m.precisao_geografica_match == 'cidade' %}
+              <span class="badge bg-success bg-opacity-25 text-success border border-success w-100 text-center py-1" style="font-size: 0.6rem;">
+                <i class="bi bi-geo-alt-fill me-1"></i>Mesmo município
+              </span>
+            {% elif m.distancia_km <= 30 %}
+              <span class="badge bg-success bg-opacity-25 text-success border border-success w-100 text-center py-1" style="font-size: 0.6rem;">
+                <i class="bi bi-geo-alt me-1"></i>Próximo
+              </span>
+            {% else %}
+              <span class="badge bg-danger bg-opacity-25 text-danger border border-danger w-100 text-center py-1" style="font-size: 0.6rem;">
+                <i class="bi bi-geo-alt me-1"></i>Distante
+              </span>
+            {% endif %}
+          {% else %}
+            <span class="badge bg-secondary bg-opacity-25 text-light border border-secondary w-100 text-center py-1" style="font-size: 0.6rem;">
+              <i class="bi bi-geo-fill me-1"></i>Geo. insuficiente
+            </span>
+          {% endif %}
+        </div>
+
         {# Exibição de contatos rápidos no card (apenas coluna Sugerido) #}
         {% if col_nome == 'Sugerido' %}
           {% set t_has = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.email and m.transportadora.email.strip()) or (m.transportadora.socios and m.transportadora.socios.strip()) %}
