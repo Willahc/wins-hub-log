@@ -43,6 +43,15 @@ class Transportadora(db.Model):
     email_validado              = db.Column(db.Boolean, default=False)
     site_validado               = db.Column(db.Boolean, default=False)
 
+    # Geografia
+    latitude                    = db.Column(db.Float)
+    longitude                   = db.Column(db.Float)
+    precisao_geocodificacao     = db.Column(db.String(50))
+    fonte_geocodificacao        = db.Column(db.String(100))
+    data_geocodificacao         = db.Column(db.String(50))
+    endereco_normalizado        = db.Column(db.Text)
+    geocodificacao_status       = db.Column(db.String(20))
+
     # CRM
     status_crm     = db.Column(db.String(20), default="nao_contatada", index=True)
     notas          = db.Column(db.Text)
@@ -141,6 +150,18 @@ class EmbarcadorProvavel(db.Model):
     capital_social              = db.Column(db.Float)
     situacao_rf                 = db.Column(db.String(50))
 
+    # Geografia
+    cep                         = db.Column(db.String(10))
+    logradouro                  = db.Column(db.Text)
+    bairro                      = db.Column(db.String(100))
+    latitude                    = db.Column(db.Float)
+    longitude                   = db.Column(db.Float)
+    precisao_geocodificacao     = db.Column(db.String(50))
+    fonte_geocodificacao        = db.Column(db.String(100))
+    data_geocodificacao         = db.Column(db.String(50))
+    endereco_normalizado        = db.Column(db.Text)
+    geocodificacao_status       = db.Column(db.String(20))
+
     created_at            = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at            = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -176,6 +197,12 @@ class MatchPreditivo(db.Model):
     proxima_acao      = db.Column(db.String(200))
     data_proxima_acao = db.Column(db.String(10), index=True)
     resultado_ultimo  = db.Column(db.String(50))
+
+    # Geografia
+    score_geografico          = db.Column(db.Float)
+    score_match_v2            = db.Column(db.Float)
+    distancia_km              = db.Column(db.Float)
+    precisao_geografica_match = db.Column(db.String(50))
     
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at        = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

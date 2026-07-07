@@ -28,7 +28,14 @@ def migrate():
             ("whatsapp_possivel", "BOOLEAN"),
             ("endereco_completo", "TEXT"),
             ("email_validado", "BOOLEAN"),
-            ("site_validado", "BOOLEAN")
+            ("site_validado", "BOOLEAN"),
+            ("latitude", "REAL"),
+            ("longitude", "REAL"),
+            ("precisao_geocodificacao", "TEXT"),
+            ("fonte_geocodificacao", "TEXT"),
+            ("data_geocodificacao", "TEXT"),
+            ("endereco_normalizado", "TEXT"),
+            ("geocodificacao_status", "TEXT")
         ],
         "embarcadores_provaveis": [
             ("socios", "TEXT"),
@@ -42,13 +49,27 @@ def migrate():
             ("site_validado", "BOOLEAN"),
             ("porte", "TEXT"),
             ("capital_social", "REAL"),
-            ("situacao_rf", "TEXT")
+            ("situacao_rf", "TEXT"),
+            ("cep", "TEXT"),
+            ("logradouro", "TEXT"),
+            ("bairro", "TEXT"),
+            ("latitude", "REAL"),
+            ("longitude", "REAL"),
+            ("precisao_geocodificacao", "TEXT"),
+            ("fonte_geocodificacao", "TEXT"),
+            ("data_geocodificacao", "TEXT"),
+            ("endereco_normalizado", "TEXT"),
+            ("geocodificacao_status", "TEXT")
         ],
         "matches_preditivos": [
             ("temperatura", "VARCHAR(20) DEFAULT 'Frio'"),
             ("proxima_acao", "VARCHAR(200)"),
             ("data_proxima_acao", "VARCHAR(10)"),
-            ("resultado_ultimo", "VARCHAR(50)")
+            ("resultado_ultimo", "VARCHAR(50)"),
+            ("score_geografico", "REAL"),
+            ("score_match_v2", "REAL"),
+            ("distancia_km", "REAL"),
+            ("precisao_geografica_match", "TEXT")
         ],
         "prospeccao_logs": [
             ("proxima_acao", "VARCHAR(200)"),
