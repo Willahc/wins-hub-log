@@ -22,7 +22,7 @@ def emb_has_contact(e):
 
 def main():
     print("============================================================")
-    print("GERANDO RELATÓRIO DE PENDENTES IRREDUTÍVEIS")
+    print("CLASSIFICANDO PENDENTES DE CONTATOS NOS MATCHES")
     print("============================================================")
     
     cache_dict = {}
@@ -47,7 +47,7 @@ def main():
         all_matches = MatchPreditivo.query.all()
         total_matches = len(all_matches)
         
-        # Matches ainda sem contato nenhum
+        # Matches sem contato nenhum
         matches_sem_contato = []
         for m in all_matches:
             if not transp_has_contact(m.transportadora) and not emb_has_contact(m.embarcador):
@@ -87,8 +87,14 @@ def main():
                 emb_dict[e.id]["max_score"] = m.score_match
                 emb_dict[e.id]["best_match"] = m
                 
-        # Construir registros de pendentes irredutíveis
+        # Construir registros
         pend_rows = []
+        class_counts = {
+            "consultado_sem_contato": 0,
+            "nao_consultado": 0,
+            "erro_temporario": 0,
+            "rate_limit_pendente": 0
+        }
         
         # Processar transportadoras
         for t_id, data in transp_dict.items():
@@ -99,18 +105,32 @@ def main():
             cached = cache_dict.get(cnpj)
             tentativa = "Sim" if cached else "Não"
             status_rec = ""
-            motivo = "Não consultado (limite/rate limit)"
-            obs = ""
+            motivo = "Não consultado"
+            obs = "Fila de espera para enriquecimento"
+            classificacao = "nao_consultado"
             
             if cached:
                 status_rec = str(cached.get("status", ""))
-                if cached.get("status") == 200:
+                status_code = cached.get("status")
+                
+                if status_code == 200:
+                    classificacao = "consultado_sem_contato"
                     motivo = "API de CNPJ retornou campos de contatos vazios"
                     obs = "CNPJ ativo na Receita Federal mas sem telefone/email"
+                elif status_code == 404:
+                    classificacao = "consultado_sem_contato"
+                    motivo = "CNPJ não encontrado na Receita Federal"
+                    obs = "Status 404 retornado pela API"
+                elif status_code == 429:
+                    classificacao = "rate_limit_pendente"
+                    motivo = "Bloqueio temporário por limite de requisições (HTTP 429)"
+                    obs = "Aguardando nova janela de tempo para consulta"
                 else:
-                    motivo = f"Erro na consulta do CNPJ: Status {cached.get('status')}"
-                    obs = cached.get("observacao", "Sem observações adicionais")
-                    
+                    classificacao = "erro_temporario"
+                    motivo = f"Erro na consulta do CNPJ: Status {status_code}"
+                    obs = cached.get("observacao", "Erro temporário do servidor")
+            
+            class_counts[classificacao] += 1
             pend_rows.append({
                 "tipo_empresa": "transportadora",
                 "id": str(t.id),
@@ -122,6 +142,7 @@ def main():
                 "motivo_pendente": motivo,
                 "tentativa_receita": tentativa,
                 "status_receita": status_rec,
+                "classificacao": classificacao,
                 "observacao": obs
             })
             
@@ -134,18 +155,32 @@ def main():
             cached = cache_dict.get(cnpj)
             tentativa = "Sim" if cached else "Não"
             status_rec = ""
-            motivo = "Não consultado (limite/rate limit)"
-            obs = ""
+            motivo = "Não consultado"
+            obs = "Fila de espera para enriquecimento"
+            classificacao = "nao_consultado"
             
             if cached:
                 status_rec = str(cached.get("status", ""))
-                if cached.get("status") == 200:
+                status_code = cached.get("status")
+                
+                if status_code == 200:
+                    classificacao = "consultado_sem_contato"
                     motivo = "API de CNPJ retornou campos de contatos vazios"
                     obs = "CNPJ ativo na Receita Federal mas sem telefone/email"
+                elif status_code == 404:
+                    classificacao = "consultado_sem_contato"
+                    motivo = "CNPJ não encontrado na Receita Federal"
+                    obs = "Status 404 retornado pela API"
+                elif status_code == 429:
+                    classificacao = "rate_limit_pendente"
+                    motivo = "Bloqueio temporário por limite de requisições (HTTP 429)"
+                    obs = "Aguardando nova janela de tempo para consulta"
                 else:
-                    motivo = f"Erro na consulta do CNPJ: Status {cached.get('status')}"
-                    obs = cached.get("observacao", "Sem observações adicionais")
-                    
+                    classificacao = "erro_temporario"
+                    motivo = f"Erro na consulta do CNPJ: Status {status_code}"
+                    obs = cached.get("observacao", "Erro temporário do servidor")
+            
+            class_counts[classificacao] += 1
             pend_rows.append({
                 "tipo_empresa": "embarcador",
                 "id": str(e.id),
@@ -157,10 +192,11 @@ def main():
                 "motivo_pendente": motivo,
                 "tentativa_receita": tentativa,
                 "status_receita": status_rec,
+                "classificacao": classificacao,
                 "observacao": obs
             })
             
-        # Ordenar por matches afetados desc, score max desc
+        # Ordenar por matches afetados desc
         pend_rows.sort(key=lambda x: (
             -x["qtd_matches_afetados"],
             -x["score_match_max"],
@@ -172,7 +208,8 @@ def main():
         cols = [
             "tipo_empresa", "id", "cnpj", "nome", "corredor", 
             "qtd_matches_afetados", "score_match_max", 
-            "motivo_pendente", "tentativa_receita", "status_receita", "observacao"
+            "motivo_pendente", "tentativa_receita", "status_receita",
+            "classificacao", "observacao"
         ]
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "w", encoding="utf-8-sig", newline="") as f:
@@ -180,15 +217,17 @@ def main():
             writer.writeheader()
             writer.writerows(pend_rows)
             
-        # Calcular taxas finais
-        # Matches com contato acionável (pelo menos um contato na transportadora ou no embarcador)
+        # Calcular taxas
         matches_acionaveis = total_matches - total_sem_contato
         pct_cobertura = (matches_acionaveis / total_matches) * 100 if total_matches > 0 else 0.0
         
         # Relatório Final
         print(f"Matches ainda sem contato:                   {total_sem_contato:,}")
-        print(f"Transportadoras ainda sem contato nos matches:{len(transp_dict):,}")
-        print(f"Embarcadores ainda sem contato nos matches:   {len(emb_dict):,}")
+        print(f"Empresas Totais Pendentes:                  {len(pend_rows):,}")
+        print(f"  - consultados_sem_contato (Irredutíveis): {class_counts['consultado_sem_contato']:,}")
+        print(f"  - nao_consultado:                         {class_counts['nao_consultado']:,}")
+        print(f"  - rate_limit_pendente:                     {class_counts['rate_limit_pendente']:,}")
+        print(f"  - erro_temporario:                        {class_counts['erro_temporario']:,}")
         print(f"Percentual de Cobertura Final de Matches:    {pct_cobertura:.2f}%")
         print(f"Percentual de Matches Acionáveis:            {pct_cobertura:.2f}%")
         print("============================================================")
