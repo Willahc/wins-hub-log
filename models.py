@@ -242,6 +242,19 @@ class ProspeccaoLog(db.Model):
     responsavel          = db.Column(db.String(100))
     temperatura          = db.Column(db.String(20))
     
+    # Campos de snapshot (preenchidos no momento do registro de resultado)
+    score_oportunidade_no_momento          = db.Column(db.Float)
+    score_logistico_origem_momento         = db.Column(db.Float)
+    score_logistico_destino_momento        = db.Column(db.Float)
+    score_retorno_no_momento               = db.Column(db.Float)
+    confianca_no_momento                   = db.Column(db.Float)
+    classificacao_oportunidade_no_momento  = db.Column(db.String(30))
+    
+    # Campos de auditoria de status
+    status_anterior       = db.Column(db.String(20))
+    status_novo           = db.Column(db.String(20))
+    origem_interface      = db.Column(db.String(50), default="web")
+    
     created_at           = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at           = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
