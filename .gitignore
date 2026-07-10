@@ -1,28 +1,38 @@
 .env
+.env.*
+!.env.example
 local.db
 *.db
+*.db-journal
+*.db-shm
+*.db-wal
 *.sqlite
+*.sqlite3
 exports/
 backups/
 __pycache__/
 .venv/
+venv/
 data_import/
 scripts/tabela_municipios_rf.csv
+instance/
 instance/cache_brasilapi_cnpj.jsonl
+*.bak
+*.bak.*
+*.log
+*.tmp
+*.partial
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+screenshots/
+tmp/
+cookies*
+session*
+token*
 
-
-# Local runtime data
-instance/
-*.db
-*.db-wal
-*.db-shm
-backups/
-exports/
-
-# Local runtime data
-instance/
-*.db
-*.db-wal
-*.db-shm
-backups/
-exports/
+# Backup files (all variants)
+*.bak
+*.bak.*
+*.bak*
