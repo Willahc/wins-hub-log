@@ -3,6 +3,35 @@
 {% block title_header %}Transportadoras{% endblock %}
 
 {% block content %}
+{% if intel_uf %}
+<div class="alert alert-secondary border-secondary bg-dark mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <strong class="text-warning"><i class="bi bi-sign-turn-right me-1"></i> Inteligência de Rota — UF {{ filtros.uf }}</strong>
+    <a href="/inteligencia" class="small text-warning">painel completo</a>
+  </div>
+  <div class="row small g-2">
+    <div class="col-md-4">
+      <div class="text-muted mb-1">Top municípios RNTRC</div>
+      {% for r in (intel_uf.transportadores.results or [])[:5] %}
+        <div class="d-flex justify-content-between"><span>{{ r.municipio }}</span><span>{{ r.quantidade_transportadores }}</span></div>
+      {% else %}<span class="text-muted">—</span>{% endfor %}
+    </div>
+    <div class="col-md-4">
+      <div class="text-muted mb-1">Score logístico</div>
+      {% for r in (intel_uf.score.results or [])[:5] %}
+        <div class="d-flex justify-content-between"><span>{{ r.municipio }}</span><span>{{ r.score_logistico }}</span></div>
+      {% else %}<span class="text-muted">—</span>{% endfor %}
+    </div>
+    <div class="col-md-4">
+      <div class="text-muted mb-1">CNPJ logísticos</div>
+      {% for r in (intel_uf.cnpj.results or [])[:5] %}
+        <div class="d-flex justify-content-between"><span>{{ r.municipio }}</span><span>{{ r.quantidade if r.quantidade is defined else r }}</span></div>
+      {% else %}<span class="text-muted">—</span>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 
 {# ── Cards de stats por corredor ───────────────────────────────────────────────── #}
 <div class="row g-2 mb-3">

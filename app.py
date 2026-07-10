@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 from datetime import datetime
 from functools import wraps
 
@@ -10,6 +11,7 @@ from flask_sqlalchemy import SQLAlchemy
 from config import Config
 from models import ImportLog, Transportadora, EmbarcadorProvavel, MatchPreditivo, ProspeccaoLog, db
 from jobs import iniciar_importacao
+from services import qualidade_score
 import sqlite3
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
@@ -210,6 +212,15 @@ def index():
     # Verificar se a base está 100% vazia
     base_vazia = (total_transportadoras == 0 and total_embarcadores == 0 and total_matches == 0)
 
+    # Inteligência de rota (best-effort; nunca derruba o dashboard)
+    intel_stats = None
+    try:
+        from services import inteligencia_rota as _ir
+        if _ir.rota_configured():
+            intel_stats = _ir.get_inteligencia_stats(include_tops=False)
+    except Exception:
+        intel_stats = None
+
     return render_template(
         "index.html",
         total_transportadoras=total_transportadoras,
@@ -244,7 +255,8 @@ def index():
             min_score=min_score,
             q=busca
         ),
-        base_vazia=base_vazia
+        base_vazia=base_vazia,
+        intel_stats=intel_stats,
     )
 
 
@@ -341,6 +353,18 @@ def transportadoras_lista():
         e.radar_carrocerias = res["carrocerias_provaveis"]
         e.radar_justificativa = res["justificativa"]
 
+    intel_uf = None
+    try:
+        from services import inteligencia_rota as _ir
+        if uf and _ir.rota_configured():
+            intel_uf = {
+                "transportadores": _ir.get_transportadores_agregado(uf=uf, limit=5),
+                "score": _ir.get_score_municipio_logistico(uf=uf, limit=5),
+                "cnpj": _ir.get_cnpj_logisticos_agregado(uf=uf, limit=5),
+            }
+    except Exception:
+        intel_uf = None
+
     return render_template(
         "transportadoras.html",
         empresas=empresas, total_empresas=total_empresas,
@@ -350,6 +374,7 @@ def transportadoras_lista():
         ultimo_log=ultimo_log,
         filtros=dict(corredor=corredor, uf=uf, status=status, cnae_frete=cnae_ok, q=busca),
         ufs=ufs, sem_filtro=False,
+        intel_uf=intel_uf,
     )
 
 
@@ -960,6 +985,8 @@ def matches_lista():
     busca      = request.args.get("q", "").strip()
     telefone_filtro = request.args.get("telefone", "")
     ordenar    = request.args.get("ordenar", "score_match")
+    score_op_min = request.args.get("score_op_min", "").strip()
+    classif_op = request.args.get("classif_op", "").strip()
 
     try:
         page = max(1, int(request.args.get("page", "1")))
@@ -1100,6 +1127,60 @@ def matches_lista():
             m.prospeccao_ultimo_status = "Pendente"
             m.prospeccao_ultima_data = "—"
 
+    # Inteligencia de Rota para matches exibidos
+    intel_matches = {}
+    try:
+        from services import inteligencia_rota as ir
+        if ir.rota_configured():
+            locations = []
+            for m in matches:
+                if m.uf_origem:
+                    locations.append({"uf": m.uf_origem, "municipio": m.cidade_origem})
+                if m.uf_destino:
+                    locations.append({"uf": m.uf_destino, "municipio": m.cidade_destino})
+            intel_result = ir.get_matches_inteligencia(locations)
+            if intel_result.get("status") == "ok":
+                intel_matches = intel_result.get("results", {})
+                for m in matches:
+                    key_origem = (m.uf_origem + "::" + (m.cidade_origem or "").upper()) if (m.cidade_origem and m.uf_origem) else (m.uf_origem + "::") if m.uf_origem else None
+                    key_destino = (m.uf_destino + "::" + (m.cidade_destino or "").upper()) if (m.cidade_destino and m.uf_destino) else (m.uf_destino + "::") if m.uf_destino else None
+                    m.intel_origem = intel_matches.get(key_origem, {}) if key_origem else {}
+                    m.intel_destino = intel_matches.get(key_destino, {}) if key_destino else {}
+    except Exception:
+        pass
+
+    # Match-level explicacao (score explicado do match)
+    for m in matches:
+        try:
+            m.explicacao = ir.get_match_explicado(m, m.intel_origem, m.intel_destino)
+        except Exception:
+            m.explicacao = {}
+
+    # Calcular score de oportunidade para cada match da pagina
+    for m in matches:
+        try:
+            m.oportunidade = build_match_opportunity(m, m.explicacao, m.intel_origem, m.intel_destino)
+        except Exception:
+            m.oportunidade = {"score_oportunidade": 0, "classificacao_oportunidade": "revisar_dados",
+                            "componentes": {}, "motivos_prioridade": [], "alertas_operacionais": [],
+                            "proxima_acao_sugerida": "Revisar dados", "dados_suficientes": False}
+    
+    # Ranking: melhores oportunidades da pagina
+    ranking = sorted(matches, key=lambda x: x.oportunidade.get("score_oportunidade", 0), reverse=True)[:5]
+    
+    # Aplicar filtros de oportunidade (pos-calculo em memoria)
+    if score_op_min:
+        try:
+            op_min = float(score_op_min)
+            matches = [m for m in matches if m.oportunidade.get("score_oportunidade", 0) >= op_min]
+        except ValueError:
+            pass
+    if classif_op:
+        matches = [m for m in matches if m.oportunidade.get("classificacao_oportunidade", "") == classif_op]
+    
+    # Recalcular ranking e stats apos filtros
+    ranking = sorted(matches, key=lambda x: x.oportunidade.get("score_oportunidade", 0), reverse=True)[:5]
+    
     # Filtros dinâmicos no template
     ufs_origem = [r[0] for r in db.session.query(MatchPreditivo.uf_origem).distinct().order_by(MatchPreditivo.uf_origem).all() if r[0]]
     ufs_destino = [r[0] for r in db.session.query(MatchPreditivo.uf_destino).distinct().order_by(MatchPreditivo.uf_destino).all() if r[0]]
@@ -1109,7 +1190,10 @@ def matches_lista():
         "total": total_matches,
         "alta": MatchPreditivo.query.filter_by(prioridade="Alta").count(),
         "negociando": MatchPreditivo.query.filter_by(status="Negociando").count(),
-        "fechados": MatchPreditivo.query.filter_by(status="Fechado").count()
+        "fechados": MatchPreditivo.query.filter_by(status="Fechado").count(),
+        "agir_agora": sum(1 for m in matches if getattr(m, 'oportunidade', {}).get("classificacao_oportunidade") == "agir_agora"),
+        "alta_prioridade_op": sum(1 for m in matches if getattr(m, 'oportunidade', {}).get("classificacao_oportunidade") == "alta_prioridade"),
+        "acompanhar": sum(1 for m in matches if getattr(m, 'oportunidade', {}).get("classificacao_oportunidade") == "acompanhar"),
     }
 
     # Opções de status e labels
@@ -1132,6 +1216,7 @@ def matches_lista():
         page=page, total_pages=total_pages, page_size=PAGE_SIZE_MATCH,
         stats=stats, corredores=Config.CORREDORES,
         status_labels=status_labels, status_list=status_list,
+        ranking=ranking,
         filtros=dict(
             corredor=corredor,
             prioridade=prioridade,
@@ -1143,9 +1228,12 @@ def matches_lista():
             fu_vencido=fu_vencido,
             q=busca,
             telefone=telefone_filtro,
-            ordenar=ordenar
+            ordenar=ordenar,
+            score_op_min=score_op_min,
+            classif_op=classif_op
         ),
-        ufs_origem=ufs_origem, ufs_destino=ufs_destino
+        ufs_origem=ufs_origem, ufs_destino=ufs_destino,
+        intel_matches=intel_matches
     )
 
 
@@ -1202,6 +1290,9 @@ def atualizar_match_crm(match_id):
     match.data_proxima_acao = request.form.get("data_proxima_acao", match.data_proxima_acao)
     
     db.session.commit()
+    
+    # Invalidar cache operacional apos alteracao
+    _invalidate_match_oper_cache(match_id)
     
     # Registrar auditoria se houver alteração de status
     if status_antigo != match.status:
@@ -1354,6 +1445,8 @@ def criar_prospeccao_log(match_id):
         match.resultado_ultimo = log.resultado
         
     db.session.commit()
+    # Invalidar cache operacional apos alteracao de prospeccao
+    _invalidate_match_oper_cache(match_id)
     return jsonify({"ok": True, "log_id": log.id})
 
 
@@ -1675,6 +1768,14 @@ def metricas_comerciais():
         "corredores": corredores_tels_formatted
     }
 
+    intel_stats = None
+    try:
+        from services import inteligencia_rota as _ir
+        if _ir.rota_configured():
+            intel_stats = _ir.get_inteligencia_stats()
+    except Exception:
+        intel_stats = None
+
     return render_template(
         "metricas.html",
         stats=stats_funil,
@@ -1687,7 +1788,8 @@ def metricas_comerciais():
         cobertura_contatos=cobertura_contatos,
         completude_dados=completude_dados,
         geografia=geografia,
-        telefones=telefones_stats
+        telefones=telefones_stats,
+        intel_stats=intel_stats,
     )
 
 
@@ -1958,6 +2060,9 @@ def atualizar_kanban_status(match_id):
             
         db.session.commit()
         
+        # Invalidar cache operacional apos alteracao
+        _invalidate_match_oper_cache(match_id)
+        
         # Registrar auditoria se houver alteração de status
         if status_antigo != novo_status:
             from radar.prospeccao import registrar_evento_sistema
@@ -2056,7 +2161,908 @@ def kanban_contato_rapido(match_id):
     
     db.session.add(log)
     db.session.commit()
+    # Invalidar cache operacional apos contato rapido
+    _invalidate_match_oper_cache(match_id)
     return jsonify({"ok": True, "log_id": log.id})
+
+
+
+
+# ─── Alias /dashboard (compat) + Inteligência de Rota ─────────────────────────
+
+@app.route("/dashboard")
+@login_required
+def dashboard_alias():
+    """Alias explícito para o dashboard principal (mesma view do index)."""
+    return index()
+
+
+@app.route("/dados")
+@app.route("/inteligencia")
+@login_required
+def inteligencia_page():
+    """Página de inteligência de rota no layout do WiNS Hub Log (não é app separado)."""
+    from services import inteligencia_rota as ir
+    stats = ir.get_inteligencia_stats() if ir.rota_configured() else {"status": "unconfigured"}
+    return render_template("inteligencia.html", stats=stats, intel_health=ir.health())
+
+
+def _proxima_acao_sugerida(match, score_op, classificacao, prospeccoes):
+    """Sugere proxima acao com base no estado atual do match."""
+    if match.status in ("Fechado", "Perdido", "Descartado"):
+        return "Finalizado"
+    if match.status == "Negociando":
+        return "Acompanhar negociacao"
+    if match.status == "Em contato":
+        if match.data_proxima_acao:
+            return "Agendar follow-up"
+        return "Manter contato"
+    if match.status == "Abordar":
+        return "Iniciar prospeccao"
+    if match.status == "Validar":
+        return "Validar dados do match"
+    if not prospeccoes:
+        return "Iniciar prospeccao"
+    ultimo = sorted(prospeccoes, key=lambda x: x.created_at, reverse=True)[0]
+    if ultimo.status in ("Gerada", "Copiada"):
+        return "Fazer contato"
+    if ultimo.status == "Sem resposta":
+        return "Tentar novo contato"
+    if match.data_proxima_acao:
+        return "Agendar follow-up"
+    return "Acompanhar"
+
+
+
+
+# ─── Constantes de resultado de match ───────────────────────────────────────
+RESULTADOS_PERMITIDOS = frozenset({
+    "contato_realizado",
+    "interessado",
+    "sem_interesse",
+    "sem_resposta",
+    "proposta_enviada",
+    "negociacao",
+    "fechado",
+    "perdido",
+    "dados_incorretos",
+    "duplicado",
+    "cancelado",
+})
+
+TRANSICOES_RESULTADO = {
+    "fechado":          "Fechado",
+    "perdido":          "Perdido",
+    "cancelado":        "Perdido",
+    "duplicado":        "Descartado",
+    "dados_incorretos": "Validar",
+    "interessado":      "Negociando",
+    "proposta_enviada": "Negociando",
+    "negociacao":       "Negociando",
+    "contato_realizado": None,
+    "sem_interesse":    None,
+    "sem_resposta":     None,
+}
+
+
+def build_match_opportunity(match, explicacao, intel_origem=None, intel_destino=None):
+    """Calcula score de oportunidade operacional (0-100) usando dados existentes.
+    Nao persiste no banco - calculado em memoria por request.
+    Nao substitui score_original, score_logistico ou prioridade manual.
+    """
+    score = 0.0
+    componentes = {}
+    motivos = []
+    from datetime import date as _date
+    alertas = []
+
+    # A. Qualidade do match original (ate 20 pts)
+    orig_score = (match.score_match or 0) / 5.0
+    orig_score = min(20, max(0, orig_score))
+    score += orig_score
+    componentes["match_original"] = {"pontos": round(orig_score, 1), "maximo": 20}
+
+    # B. Forca logistica (ate 20 pts) - destino pesa mais
+    sl_origem = float(intel_origem.get("score_logistico") or 0) if intel_origem else 0
+    sl_destino = float(intel_destino.get("score_logistico") or 0) if intel_destino else 0
+    log_score = (sl_origem * 0.3 + sl_destino * 0.7)
+    log_score = min(20, max(0, log_score))
+    score += log_score
+    componentes["forca_logistica"] = {"pontos": round(log_score, 1), "maximo": 20}
+    if sl_origem < 20:
+        alertas.append("Forca logistica da origem baixa")
+    if sl_destino < 20:
+        alertas.append("Forca logistica do destino baixa")
+
+    # C. Retorno vazio (ate 25 pts)
+    rv = float(explicacao.get("score_retorno_vazio") or 0) / 100.0 * 25
+    rv = min(25, max(0, rv))
+    score += rv
+    componentes["retorno_vazio"] = {"pontos": round(rv, 1), "maximo": 25}
+    if rv >= 18:
+        motivos.append("Bom potencial de retorno vazio")
+
+    # D. Confianca dos dados (ate 15 pts)
+    conf = float(explicacao.get("confianca_geral") or 0) / 100.0 * 15
+    conf = min(15, max(0, conf))
+    score += conf
+    componentes["confianca"] = {"pontos": round(conf, 1), "maximo": 15}
+    if conf < 5:
+        alertas.append("Confianca dos dados baixa")
+
+    # E. Momento operacional (ate 15 pts)
+    mom = 0
+    if match.temperatura == "Quente":
+        mom += 5
+    elif match.temperatura == "Morno":
+        mom += 3
+    elif match.temperatura == "Frio":
+        mom += 1
+
+    if match.prioridade == "Alta":
+        mom += 4
+    elif match.prioridade == "Media" or match.prioridade == "Média":
+        mom += 2
+
+    p_list = list(match.prospeccoes or [])
+    if not p_list:
+        mom += 3
+        motivos.append("Prospeccao nao iniciada")
+    else:
+        ultimo = sorted(p_list, key=lambda x: x.created_at, reverse=True)[0]
+        if ultimo.status in ("Gerada", "Copiada"):
+            mom += 1
+
+    if match.data_proxima_acao and match.status not in ("Fechado", "Perdido", "Descartado"):
+        try:
+            data_fu = _date.fromisoformat(match.data_proxima_acao)
+            if data_fu < _date.today():
+                mom += 2
+                motivos.append("Follow-up vencido")
+        except (ValueError, TypeError):
+            pass
+
+    mom = min(15, max(0, mom))
+    score += mom
+    componentes["momento_operacional"] = {"pontos": round(mom, 1), "maximo": 15}
+
+    # F. Penalidades (ate -15 pts)
+    pen = 0.0
+    risco = float(explicacao.get("risco_penalidade") or 0)
+    pen -= risco * 1.2
+
+    if match.status in ("Perdido", "Descartado"):
+        pen -= 10
+        alertas.append("Match perdido/descartado")
+    elif match.temperatura in ("Fechado", "Perdido"):
+        pen -= 5
+
+    pen = max(-15.0, min(0.0, pen))
+    score += pen
+    componentes["penalidades"] = {"pontos": round(pen, 1), "maximo_penalidade": 15}
+
+    score = max(0, min(100, round(score)))
+
+    if score >= 80:
+        cls = "agir_agora"
+    elif score >= 60:
+        cls = "alta_prioridade"
+    elif score >= 40:
+        cls = "acompanhar"
+    elif score >= 20:
+        cls = "baixa_prioridade"
+    else:
+        cls = "revisar_dados"
+
+    prox_acao = _proxima_acao_sugerida(match, score, cls, p_list)
+
+    return {
+        "score_oportunidade": score,
+        "classificacao_oportunidade": cls,
+        "componentes": componentes,
+        "motivos_prioridade": motivos,
+        "alertas_operacionais": alertas,
+        "proxima_acao_sugerida": prox_acao,
+        "dados_suficientes": match.score_match is not None,
+    }
+
+
+
+def _intel_json(payload):
+    # Soft-fail: devolve JSON sempre 200 para o front tratar status;
+    # só 503 se módulo não configurado.
+    code = 200
+    if isinstance(payload, dict) and payload.get("status") == "unconfigured":
+        code = 503
+    return jsonify(payload), code
+
+
+def _intel_error(status_code, detail):
+    """Retorna erro padrao para endpoint de inteligencia (nao armazena em cache)."""
+    return jsonify({"status": "error", "detail": detail, "_cached": False}), status_code, {"Cache-Control": "private, no-store"}
+
+
+
+@app.route("/api/inteligencia/health")
+@login_required
+def api_intel_health():
+    from services import inteligencia_rota as ir
+    return _intel_json(ir.health())
+
+
+@app.route("/api/inteligencia/stats")
+@login_required
+def api_intel_stats():
+    from services import inteligencia_rota as ir
+    return _intel_json(ir.get_inteligencia_stats())
+
+
+
+import logging
+_CACHE_LOG = logging.getLogger("cache.match")
+
+MATCH_SCORE_FORMULA_VERSION = "v1"
+
+# Cache de inteligencia logistica (estavel, TTL 15 min)
+_CACHE_INTEL: dict[str, tuple[float, dict]] = {}
+_CACHE_INTEL_TTL = 900
+_CACHE_INTEL_MAX = 1000
+
+# Cache de dados operacionais (dinamico, TTL 10s, chave versionada por updated_at)
+_CACHE_OPER: dict[str, tuple[float, dict]] = {}
+_CACHE_OPER_TTL = 10
+_CACHE_OPER_MAX = 2000
+
+# Estatisticas de cache (por worker)
+_CACHE_STATS = {"intel_hits": 0, "intel_misses": 0, "intel_evictions": 0,
+               "oper_hits": 0, "oper_misses": 0, "oper_evictions": 0,
+               "oper_invalidations": 0, "last_error": None}
+
+
+
+def _cache_intel_key(match_id):
+    """Chave versionada para cache de inteligencia."""
+    return f"intel:{match_id}:{MATCH_SCORE_FORMULA_VERSION}"
+
+def _cache_oper_key(match_id, updated_at_iso):
+    """Chave versionada para cache operacional, inclui updated_at."""
+    return f"oper:{match_id}:{updated_at_iso or 'none'}:{MATCH_SCORE_FORMULA_VERSION}"
+
+def _get_cached_intel(match_id):
+    """Retorna bloco de inteligencia do cache se valido."""
+    import time as _t
+    key = _cache_intel_key(match_id)
+    cached = _CACHE_INTEL.get(key)
+    if not cached:
+        _CACHE_STATS["intel_misses"] += 1
+        return None
+    ts, data = cached
+    if _t.time() - ts > _CACHE_INTEL_TTL:
+        _CACHE_INTEL.pop(key, None)
+        _CACHE_STATS["intel_misses"] += 1
+        _CACHE_LOG.debug("intel_cache_expired match_id=%s", match_id)
+        return None
+    _CACHE_STATS["intel_hits"] += 1
+    return data
+
+def _set_cached_intel(match_id, data):
+    """Armazena bloco de inteligencia (so se payload valido)."""
+    import time as _t
+    if not data or not isinstance(data, dict) or data.get("classificacao") is None:
+        _CACHE_LOG.debug("intel_cache_skip invalid payload match_id=%s", match_id)
+        return
+    key = _cache_intel_key(match_id)
+    if len(_CACHE_INTEL) >= _CACHE_INTEL_MAX:
+        oldest = sorted(_CACHE_INTEL.items(), key=lambda x: x[1][0])[:_CACHE_INTEL_MAX//4]
+        for k, _ in oldest:
+            _CACHE_INTEL.pop(k, None)
+        _CACHE_STATS["intel_evictions"] += 1
+    _CACHE_INTEL[key] = (_t.time(), data)
+    _CACHE_LOG.debug("intel_cache_set match_id=%s", match_id)
+
+def _get_cached_oper(match_id, updated_at_iso):
+    """Retorna bloco operacional do cache se valido."""
+    import time as _t
+    key = _cache_oper_key(match_id, updated_at_iso)
+    cached = _CACHE_OPER.get(key)
+    if not cached:
+        _CACHE_STATS["oper_misses"] += 1
+        return None
+    ts, data = cached
+    if _t.time() - ts > _CACHE_OPER_TTL:
+        _CACHE_OPER.pop(key, None)
+        _CACHE_STATS["oper_misses"] += 1
+        _CACHE_LOG.debug("oper_cache_expired match_id=%s", match_id)
+        return None
+    _CACHE_STATS["oper_hits"] += 1
+    return data
+
+def _set_cached_oper(match_id, updated_at_iso, data):
+    """Armazena bloco operacional (so se payload valido)."""
+    import time as _t
+    if not data or not isinstance(data, dict):
+        _CACHE_LOG.debug("oper_cache_skip invalid payload match_id=%s", match_id)
+        return
+    key = _cache_oper_key(match_id, updated_at_iso)
+    if len(_CACHE_OPER) >= _CACHE_OPER_MAX:
+        oldest = sorted(_CACHE_OPER.items(), key=lambda x: x[1][0])[:_CACHE_OPER_MAX//4]
+        for k, _ in oldest:
+            _CACHE_OPER.pop(k, None)
+        _CACHE_STATS["oper_evictions"] += 1
+    _CACHE_OPER[key] = (_t.time(), data)
+    _CACHE_LOG.debug("oper_cache_set match_id=%s updated_at=%s", match_id, updated_at_iso)
+
+def _invalidate_match_oper_cache(match_id):
+    """Remove todas as entradas do cache operacional para um match_id."""
+    import time as _t
+    prefix = f"oper:{match_id}:"
+    to_delete = [k for k in _CACHE_OPER if k.startswith(prefix)]
+    for k in to_delete:
+        _CACHE_OPER.pop(k, None)
+    _CACHE_STATS["oper_invalidations"] += 1
+    _CACHE_LOG.info("oper_cache_invalidated match_id=%s entries=%s", match_id, len(to_delete))
+
+def _is_valid_match_payload(data):
+    """Valida payload completo do endpoint."""
+    if not data or not isinstance(data, dict):
+        return False
+    if data.get("status") == "error":
+        return False
+    if data.get("match_id") is None:
+        return False
+    return True
+
+
+@app.route("/api/inteligencia/match/<int:match_id>")
+@login_required
+def api_intel_match(match_id):
+    """Retorna explicacao detalhada com caches separados (inteligencia + operacional)."""
+    from models import MatchPreditivo
+    from services import inteligencia_rota as ir
+    
+    import time as _time
+    now = _time.time()
+    
+    # Carregar match e updated_at
+    match = db.session.get(MatchPreditivo, match_id)
+    if not match:
+        return _intel_error(404, "Match nao encontrado")
+    
+    ua = match.updated_at
+    updated_at_iso = ua.isoformat() if ua else "unknown"
+    
+    # Tentar blocos do cache separadamente
+    cached_intel = _get_cached_intel(match_id)
+    cached_oper = _get_cached_oper(match_id, updated_at_iso)
+    
+    if cached_intel and cached_oper:
+        resp = dict(cached_intel)
+        resp.update(cached_oper)
+        resp["_cache"] = "both"
+        _CACHE_LOG.debug("match_cache_full_hit match_id=%s", match_id)
+        resp_headers = {"Cache-Control": "private, no-store"}
+        return jsonify(resp), 200, resp_headers
+    
+    # Construir blocos que faltam
+    intel_origem = {}
+    intel_destino = {}
+    if not cached_intel:
+        locations = []
+        if match.uf_origem:
+            locations.append({"uf": match.uf_origem, "municipio": match.cidade_origem})
+        if match.uf_destino:
+            locations.append({"uf": match.uf_destino, "municipio": match.cidade_destino})
+        
+        if locations and ir.rota_configured():
+            try:
+                intel_result = ir.get_matches_inteligencia(locations)
+                if intel_result.get("status") == "ok":
+                    results = intel_result.get("results", {})
+                    key_origem = (match.uf_origem + "::" + (match.cidade_origem or "").upper()) if (match.cidade_origem and match.uf_origem) else (match.uf_origem + "::") if match.uf_origem else None
+                    key_destino = (match.uf_destino + "::" + (match.cidade_destino or "").upper()) if (match.cidade_destino and match.uf_destino) else (match.uf_destino + "::") if match.uf_destino else None
+                    intel_origem = results.get(key_origem, {}) if key_origem else {}
+                    intel_destino = results.get(key_destino, {}) if key_destino else {}
+            except Exception:
+                pass
+        
+        explicacao = ir.get_match_explicado(match, intel_origem, intel_destino)
+        
+        def _build_local(data, cidade, uf):
+            io = data or {}
+            return {
+                "municipio": cidade,
+                "uf": uf,
+                "nivel_correspondencia": io.get("nivel_correspondencia"),
+                "score_logistico": io.get("score_logistico"),
+                "classificacao": io.get("classificacao"),
+                "confianca_dados": io.get("confianca_dados"),
+                "confianca_label": io.get("confianca_label"),
+                "risco_regional": io.get("risco_regional"),
+                "risco_regional_label": io.get("risco_regional_label"),
+                "transportadores_qtd": io.get("transportadores_qtd"),
+                "cnpjs_logisticos_qtd": io.get("cnpjs_logisticos_qtd"),
+                "pontos_apoio_qtd": io.get("pontos_apoio_qtd"),
+                "postos_anp_qtd": io.get("postos_qtd"),
+                "comex_fluxos_qtd": io.get("comex_fluxos_qtd"),
+            }
+        
+        cached_intel = {
+            "match_id": match.id,
+            "score_match_explicado": explicacao.get("score_match_explicado"),
+            "score_retorno_vazio": explicacao.get("score_retorno_vazio"),
+            "classificacao": explicacao.get("classificacao"),
+            "confianca_geral": explicacao.get("confianca_geral"),
+            "confianca_label": explicacao.get("confianca_label"),
+            "risco_penalidade": explicacao.get("risco_penalidade"),
+            "origem": _build_local(intel_origem, match.cidade_origem, match.uf_origem),
+            "destino": _build_local(intel_destino, match.cidade_destino, match.uf_destino),
+            "componentes": {
+                "origem": intel_origem.get("componentes"),
+                "destino": intel_destino.get("componentes"),
+            },
+            "fatores_positivos": explicacao.get("fatores_positivos", []),
+            "fatores_atencao": explicacao.get("fatores_atencao", []),
+            "limitacoes": explicacao.get("limitacoes", []),
+        }
+        _set_cached_intel(match_id, cached_intel)
+    
+    if not cached_oper:
+        cached_oper = {
+            "match_id": match.id,
+            "score_original": match.score_match,
+            "prioridade": match.prioridade,
+            "status": match.status,
+            "temperatura": match.temperatura,
+            "distancia_km": match.distancia_km,
+            "precisao_geografica": match.precisao_geografica_match,
+            "transportadora": {
+                "razao_social": match.transportadora.razao_social or match.transportadora.nome_rntrc,
+                "telefone": match.transportadora.telefone,
+                "email": match.transportadora.email,
+                "score_completude": match.transportadora.score_completude,
+            } if match.transportadora else {},
+            "embarcador": {
+                "razao_social": match.embarcador.razao_social or match.embarcador.nome_fantasia,
+                "telefone": match.embarcador.telefone,
+                "email": match.embarcador.email,
+                "score_completude": match.embarcador.score_completude,
+            } if match.embarcador else {},
+            "prospeccao": [{
+                "canal": l.canal,
+                "destinatario_tipo": l.destinatario_tipo,
+                "status": l.status,
+                "observacao": l.observacao,
+                "data": l.created_at.strftime("%d/%m/%Y %H:%M") if l.created_at else "",
+            } for l in (match.prospeccoes or [])],
+            "proxima_acao": match.proxima_acao,
+            "data_proxima_acao": match.data_proxima_acao,
+            "updated_at": updated_at_iso,
+        }
+        _set_cached_oper(match_id, updated_at_iso, cached_oper)
+    
+    resp = dict(cached_intel)
+    resp.update(cached_oper)
+    resp["_cache"] = "both" if (cached_intel and cached_oper) else ("intel" if cached_intel else ("oper" if cached_oper else "miss"))
+    
+    # Adicionar bloco de oportunidade (calculado em CPU, sem queries extras)
+    try:
+        op_explicacao = {
+            "score_match_explicado": resp.get("score_match_explicado"),
+            "score_retorno_vazio": resp.get("score_retorno_vazio"),
+            "classificacao": resp.get("classificacao"),
+            "confianca_geral": resp.get("confianca_geral"),
+            "confianca_label": resp.get("confianca_label"),
+            "risco_penalidade": resp.get("risco_penalidade"),
+            "fatores_positivos": resp.get("fatores_positivos", []),
+            "fatores_atencao": resp.get("fatores_atencao", []),
+            "limitacoes": resp.get("limitacoes", []),
+        }
+        intel_origem_op = resp.get("origem", {})
+        intel_destino_op = resp.get("destino", {})
+        # Precisa do match object para prospeccoes, status, etc - temos no cached_oper
+        # Mas nao temos acesso direto ao match object. Vamos construir um objeto simples.
+        class SimpleMatch:
+            pass
+        sm = SimpleMatch()
+        sm.score_match = resp.get("score_original")
+        sm.status = resp.get("status")
+        sm.temperatura = resp.get("temperatura")
+        sm.prioridade = resp.get("prioridade")
+        sm.data_proxima_acao = resp.get("data_proxima_acao")
+        sm.proxima_acao = resp.get("proxima_acao")
+        sm.prospeccoes = resp.get("prospeccao", [])
+        # Usar dados do cached_oper
+        sm.score_match = cached_oper.get("score_original") if cached_oper else match.score_match if match else None
+        sm.status = cached_oper.get("status") if cached_oper else match.status if match else None
+        sm.temperatura = cached_oper.get("temperatura") if cached_oper else match.temperatura if match else None
+        sm.prioridade = cached_oper.get("prioridade") if cached_oper else match.prioridade if match else None
+        sm.data_proxima_acao = cached_oper.get("data_proxima_acao") if cached_oper else match.data_proxima_acao if match else None
+        sm.prospeccoes = cached_oper.get("prospeccao", []) if cached_oper else (list(match.prospeccoes) if match else [])
+        
+        resp["oportunidade"] = build_match_opportunity(sm, op_explicacao, intel_origem_op, intel_destino_op)
+    except Exception as e:
+        resp["oportunidade"] = {"score_oportunidade": 0, "classificacao_oportunidade": "revisar_dados",
+                               "componentes": {}, "motivos_prioridade": [], "alertas_operacionais": [],
+                               "proxima_acao_sugerida": "Revisar dados", "dados_suficientes": False,
+                               "_erro": str(e)[:50]}
+    
+    # Adicionar resultado atual e historico resumido
+    from models import ProspeccaoLog
+    ultimo_resultado = ProspeccaoLog.query.filter_by(
+        match_id=match_id, canal="Resultado"
+    ).order_by(ProspeccaoLog.created_at.desc()).first()
+
+    if ultimo_resultado:
+        resp["resultado_atual"] = {
+            "resultado": ultimo_resultado.resultado,
+            "data": ultimo_resultado.created_at.isoformat() if ultimo_resultado.created_at else None,
+            "responsavel": ultimo_resultado.responsavel,
+            "observacao": (ultimo_resultado.observacao or "")[:200],
+            "score_oportunidade_no_momento": ultimo_resultado.score_oportunidade_no_momento,
+            "classificacao_no_momento": ultimo_resultado.classificacao_oportunidade_no_momento,
+            "status_anterior": ultimo_resultado.status_anterior,
+            "status_novo": ultimo_resultado.status_novo,
+        }
+    else:
+        resp["resultado_atual"] = None
+
+    ultimos_logs = ProspeccaoLog.query.filter_by(match_id=match_id)        .order_by(ProspeccaoLog.created_at.desc()).limit(5).all()
+    historico = []
+    for log in ultimos_logs:
+        entry = {
+            "data": log.created_at.isoformat() if log.created_at else None,
+            "canal": log.canal,
+            "resultado": log.resultado,
+            "usuario": log.responsavel,
+            "status_anterior": log.status_anterior,
+            "status_novo": log.status_novo,
+        }
+        if log.score_oportunidade_no_momento is not None:
+            entry["snapshot_score"] = log.score_oportunidade_no_momento
+        historico.append(entry)
+    resp["historico_resumido"] = historico
+
+    status_atual = resp.get("status", "")
+    acoes = []
+    if status_atual not in ("Fechado", "Perdido", "Descartado"):
+        acoes = ["registrar_resultado", "registrar_contato", "criar_followup"]
+        if status_atual in ("Sugerido", "Validar"):
+            acoes.append("iniciar_prospeccao")
+        if status_atual == "Negociando":
+            acoes.append("fechar_negociacao")
+    resp["acoes_disponiveis"] = acoes
+
+    resp_headers = {"Cache-Control": "private, no-store"}
+    return jsonify(resp), 200, resp_headers
+@app.route("/api/inteligencia/postos")
+@login_required
+def api_intel_postos():
+    from services import inteligencia_rota as ir
+    return _intel_json(ir.get_postos(
+        uf=request.args.get("uf"),
+        municipio=request.args.get("municipio"),
+        bandeira=request.args.get("bandeira"),
+        limit=request.args.get("limit", 100),
+    ))
+
+
+@app.route("/api/inteligencia/pontos-apoio")
+@login_required
+def api_intel_pontos_apoio():
+    from services import inteligencia_rota as ir
+    return _intel_json(ir.get_pontos_apoio(
+        uf=request.args.get("uf"),
+        municipio=request.args.get("municipio"),
+        tipo=request.args.get("tipo"),
+        limit=request.args.get("limit", 100),
+    ))
+
+
+@app.route("/api/inteligencia/risco-rota")
+@login_required
+def api_intel_risco():
+    from services import inteligencia_rota as ir
+    return _intel_json(ir.get_risco_rota(
+        uf=request.args.get("uf"),
+        br=request.args.get("br"),
+        limit=request.args.get("limit", 100),
+    ))
+
+
+@app.route("/api/inteligencia/transportadores")
+@login_required
+def api_intel_transportadores():
+    from services import inteligencia_rota as ir
+    return _intel_json(ir.get_transportadores_agregado(
+        uf=request.args.get("uf"),
+        municipio=request.args.get("municipio"),
+        limit=request.args.get("limit", 100),
+    ))
+
+
+@app.route("/api/inteligencia/cnpj-logisticos")
+@login_required
+def api_intel_cnpj():
+    from services import inteligencia_rota as ir
+    return _intel_json(ir.get_cnpj_logisticos_agregado(
+        uf=request.args.get("uf"),
+        municipio=request.args.get("municipio"),
+        limit=request.args.get("limit", 100),
+    ))
+
+
+@app.route("/api/inteligencia/comex")
+@login_required
+def api_intel_comex():
+    from services import inteligencia_rota as ir
+    ano = request.args.get("ano")
+    return _intel_json(ir.get_comex_fluxo_uf(
+        uf=request.args.get("uf"),
+        ano=int(ano) if ano and str(ano).isdigit() else None,
+        limit=request.args.get("limit", 100),
+    ))
+
+
+@app.route("/api/inteligencia/score-municipio")
+@login_required
+def api_intel_score():
+    from services import inteligencia_rota as ir
+    return _intel_json(ir.get_score_municipio_logistico(
+        uf=request.args.get("uf"),
+        municipio=request.args.get("municipio"),
+        limit=request.args.get("limit", 100),
+    ))
+
+
+
+
+# ─── Servico transacional de resultado de match ──────────────────────────────
+
+def registrar_resultado_match(match_id, resultado, motivo=None, observacao=None, usuario=None, origem_interface="web"):
+    from models import MatchPreditivo, ProspeccaoLog
+    from datetime import datetime
+
+    match = MatchPreditivo.query.get(match_id)
+    if not match:
+        raise ValueError("Match nao encontrado")
+
+    if resultado not in RESULTADOS_PERMITIDOS:
+        raise ValueError(f"Resultado invalido: {resultado}")
+
+    status_anterior = match.status
+    novo_status = TRANSICOES_RESULTADO.get(resultado)
+
+    from services import inteligencia_rota as _ir_res
+    try:
+        op_explicacao = _ir_res.get_match_explicado(match, {}, {})
+    except Exception:
+        op_explicacao = {}
+
+    score_op = 0
+    classif_op = "revisar_dados"
+    try:
+        oport_data = build_match_opportunity(match, op_explicacao)
+        score_op = oport_data.get("score_oportunidade", 0)
+        classif_op = oport_data.get("classificacao_oportunidade", "revisar_dados")
+    except Exception:
+        pass
+
+    score_log_orig = float(op_explicacao.get("score_logistico_origem") or 0) if op_explicacao else 0
+    score_log_dest = float(op_explicacao.get("score_logistico_destino") or 0) if op_explicacao else 0
+    score_retorno = float(op_explicacao.get("score_retorno_vazio") or 0) if op_explicacao else 0
+    confianca = float(op_explicacao.get("confianca_geral") or 0) if op_explicacao else 0
+
+    db.session.begin_nested()
+    try:
+        historico = ProspeccaoLog(
+            match_id=match.id,
+            canal="Resultado",
+            destinatario_tipo="Match",
+            destinatario_nome=f"{match.transportadora.razao_social or match.transportadora.nome_rntrc or 'T'} + {match.embarcador.razao_social or match.embarcador.nome_fantasia or 'E'}"[:150],
+            destinatario_contato="",
+            mensagem=f"Resultado registrado: {resultado}",
+            status="Concluido",
+            observacao=observacao or "",
+            resultado=resultado,
+            responsavel=usuario or "Sistema",
+            temperatura=match.temperatura,
+            proxima_acao=match.proxima_acao,
+            data_proxima_acao=match.data_proxima_acao,
+            score_oportunidade_no_momento=score_op,
+            classificacao_oportunidade_no_momento=classif_op,
+            score_logistico_origem_momento=score_log_orig,
+            score_logistico_destino_momento=score_log_dest,
+            score_retorno_no_momento=score_retorno,
+            confianca_no_momento=confianca,
+            status_anterior=status_anterior,
+            status_novo=novo_status or status_anterior,
+            origem_interface=origem_interface,
+        )
+        db.session.add(historico)
+
+        if novo_status:
+            match.status = novo_status
+
+        match.resultado_ultimo = resultado
+        match.updated_at = datetime.utcnow()
+
+        if status_anterior != match.status:
+            from radar.prospeccao import registrar_evento_sistema
+            registrar_evento_sistema(db.session, match, status_anterior, match.status,
+                                     f"Resultado {resultado} alterou status")
+
+        db.session.commit()
+        _invalidate_match_oper_cache(match_id)
+
+        return {
+            "ok": True,
+            "match_id": match.id,
+            "resultado": resultado,
+            "status_anterior": status_anterior,
+            "status_novo": match.status,
+            "score_oportunidade": score_op,
+            "classificacao_oportunidade": classif_op,
+            "updated_at": match.updated_at.isoformat() if match.updated_at else None,
+            "mensagem": f"Resultado '{resultado}' registrado com sucesso.",
+        }
+    except Exception:
+        db.session.rollback()
+        raise
+
+
+
+
+
+# ─── Endpoint de resultado do match ─────────────────────────────────────────
+
+@app.route("/api/matches/<int:match_id>/resultado", methods=["POST"])
+@login_required
+def api_match_resultado(match_id):
+    try:
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+        else:
+            data = request.form.to_dict()
+
+        resultado = (data.get("resultado") or "").strip().lower()
+        motivo = (data.get("motivo") or "").strip()[:200]
+        observacao = (data.get("observacao") or "").strip()[:500]
+        origem = (data.get("origem_interface") or "web").strip()
+
+        if not resultado:
+            return jsonify({"ok": False, "erro": "Campo 'resultado' obrigatorio"}), 400
+
+        if resultado not in RESULTADOS_PERMITIDOS:
+            return jsonify({
+                "ok": False,
+                "erro": f"Resultado invalido: '{resultado}'. Validos: {', '.join(sorted(RESULTADOS_PERMITIDOS))}"
+            }), 400
+
+        usuario = session.get('username', 'admin') if session.get('logado') else None
+        payload = registrar_resultado_match(match_id, resultado, motivo, observacao, usuario, origem)
+        return jsonify(payload), 200
+
+    except ValueError as e:
+        return jsonify({"ok": False, "erro": str(e)}), 404
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "erro": "Erro ao registrar resultado"}), 500
+
+
+
+
+
+# ─── Endpoint de historico do match ──────────────────────────────────────────
+
+@app.route("/api/matches/<int:match_id>/historico")
+@login_required
+def api_match_historico(match_id):
+    from models import MatchPreditivo, ProspeccaoLog
+
+    match = MatchPreditivo.query.get(match_id)
+    if not match:
+        return jsonify({"ok": False, "erro": "Match nao encontrado"}), 404
+
+    limit = request.args.get("limit", 20, type=int)
+    limit = min(limit, 100)
+
+    logs = ProspeccaoLog.query.filter_by(match_id=match_id)        .order_by(ProspeccaoLog.created_at.desc())        .limit(limit).all()
+
+    eventos = []
+    for log in logs:
+        evento = {
+            "id": log.id,
+            "data": log.created_at.isoformat() if log.created_at else None,
+            "canal": log.canal,
+            "acao": log.canal,
+            "resultado": log.resultado,
+            "status": log.status,
+            "observacao": (log.observacao or "")[:200],
+            "usuario": log.responsavel,
+            "temperatura": log.temperatura,
+            "proxima_acao": log.proxima_acao,
+            "origem_interface": log.origem_interface,
+        }
+        if log.score_oportunidade_no_momento is not None:
+            evento["snapshot"] = {
+                "score_oportunidade": log.score_oportunidade_no_momento,
+                "classificacao_oportunidade": log.classificacao_oportunidade_no_momento,
+                "score_retorno_vazio": log.score_retorno_no_momento,
+                "confianca": log.confianca_no_momento,
+            }
+        if log.status_anterior or log.status_novo:
+            evento["status_anterior"] = log.status_anterior
+            evento["status_novo"] = log.status_novo
+        eventos.append(evento)
+
+    return jsonify({
+        "ok": True,
+        "match_id": match_id,
+        "total": len(eventos),
+        "eventos": eventos,
+    })
+
+
+
+
+# ─── Qualidade do Score ───────────────────────────────────────────────────────
+
+@app.route("/qualidade-score")
+@login_required
+def qualidade_score_page():
+    data = qualidade_score.diagnosticar_snapshots()
+    vazamento = qualidade_score.verificar_vazamento_temporal()
+    calibracao = qualidade_score.metricas_calibracao()
+    # Carregar auditoria global do arquivo
+    global_audit = {}
+    audit_path = "/opt/caminhao_vazio/logs/auditoria_score_global/resumo_global.json"
+    try:
+        with open(audit_path) as f:
+            global_audit = json.load(f)
+    except Exception:
+        global_audit = {"erro": "Auditoria global ainda nao executada"}
+    return render_template("qualidade_score.html",
+        data=data,
+        vazamento=vazamento,
+        calibracao=calibracao,
+        global_audit=global_audit,
+        now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        MIN_TERMINAIS=qualidade_score.MIN_TERMINAIS,
+        MIN_RESULTADOS=qualidade_score.MIN_RESULTADOS,
+        logado=session.get("logado", False),
+    )
+
+
+@app.route("/api/metricas/qualidade-score")
+@login_required
+def api_qualidade_score():
+    try:
+        data = qualidade_score.diagnosticar_snapshots()
+        vazamento = qualidade_score.verificar_vazamento_temporal()
+        global_audit = {}
+        try:
+            with open("/opt/caminhao_vazio/logs/auditoria_score_global/resumo_global.json") as f:
+                global_audit = json.load(f)
+        except Exception:
+            pass
+        return jsonify({"ok": True, "data": data, "vazamento": vazamento, "global_audit": global_audit})
+    except Exception as e:
+        return jsonify({"ok": False, "erro": str(e)}), 500
+
+
+@app.route("/api/metricas/distribuicao-score")
+@login_required
+def api_distribuicao_score():
+    resp = {}
+    try:
+        with open("/opt/caminhao_vazio/logs/auditoria_score_global/resumo_global.json") as f:
+            resp = json.load(f)
+        resp["ok"] = True
+    except Exception as e:
+        resp = {"ok": False, "erro": str(e)}
+    response = jsonify(resp)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────

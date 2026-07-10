@@ -58,6 +58,26 @@
 
 {# ── Dashboard Ativo ──────────────────────────────────────────────────────── #}
 
+{% if intel_stats and intel_stats.status == 'ok' %}
+<div class="mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="text-white mb-0"><i class="bi bi-sign-turn-right text-warning me-1"></i> Inteligência de Rota</h6>
+    <a href="/inteligencia" class="btn btn-xs btn-outline-warning py-0 px-2" style="font-size:0.7rem;">Ver painel</a>
+  </div>
+  <div class="row g-2">
+    <div class="col-6 col-md-3"><div class="card bg-dark border-secondary"><div class="card-body py-2 px-3"><small class="text-muted">Pontos de apoio</small><div class="text-white fw-semibold">{{ "{:,.0f}".format(intel_stats.total_pontos_apoio or 0).replace(",", ".") }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card bg-dark border-secondary"><div class="card-body py-2 px-3"><small class="text-muted">Postos ANP</small><div class="text-white fw-semibold">{{ "{:,.0f}".format(intel_stats.total_postos or 0).replace(",", ".") }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card bg-dark border-secondary"><div class="card-body py-2 px-3"><small class="text-muted">RNTRC</small><div class="text-white fw-semibold">{{ "{:,.0f}".format(intel_stats.total_transportadores or 0).replace(",", ".") }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card bg-dark border-secondary"><div class="card-body py-2 px-3"><small class="text-muted">Risco PRF (trechos)</small><div class="text-white fw-semibold">{{ "{:,.0f}".format(intel_stats.total_risco_prf or 0).replace(",", ".") }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card bg-dark border-secondary"><div class="card-body py-2 px-3"><small class="text-muted">CNPJ logísticos</small><div class="text-white fw-semibold">{{ "{:,.0f}".format(intel_stats.total_cnpj_logisticos or 0).replace(",", ".") }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card bg-dark border-secondary"><div class="card-body py-2 px-3"><small class="text-muted">Comex fluxos</small><div class="text-white fw-semibold">{{ "{:,.0f}".format(intel_stats.total_comex or 0).replace(",", ".") }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card bg-dark border-secondary"><div class="card-body py-2 px-3"><small class="text-muted">Pavimento DNIT</small><div class="text-white fw-semibold">{{ "{:,.0f}".format(intel_stats.total_dnit_pavimento or 0).replace(",", ".") }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card bg-dark border-secondary"><div class="card-body py-2 px-3"><small class="text-muted">Municípios score</small><div class="text-white fw-semibold">{{ "{:,.0f}".format(intel_stats.total_municipios_score or 0).replace(",", ".") }}</div></div></div></div>
+  </div>
+</div>
+{% endif %}
+
+
 {# ── Barra Superior com Ações Rápidas ── #}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <div>

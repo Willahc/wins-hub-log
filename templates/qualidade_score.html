@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% block title %}Qualidade do Score — WiNS Hub Log{% endblock %}
+
+{% block head_extra %}
+<style>
+  .qs-card { background:#1e293b; border:1px solid #334155; border-radius:8px; padding:1rem; }
+  .qs-badge { font-size:0.65rem; padding:2px 8px; border-radius:4px; }
+  .qs-meter { height:6px; border-radius:3px; background:#334155; overflow:hidden; }
+  .qs-meter-fill { height:100%; border-radius:3px; transition:width .6s ease; }
+  .qs-stat { font-size:1.8rem; font-weight:700; line-height:1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-0"><i class="bi bi-bar-chart-steps me-2 text-warning"></i>Qualidade do Score</h4>
+      <small class="text-muted">Diagnóstico da primeira camada de avaliação do score de oportunidade</small>
+    </div>
+    <div>
+      <span class="badge bg-warning text-dark qs-badge me-1">FASE 1</span>
+      <span class="badge bg-secondary qs-badge">Snapshot-based evaluation</span>
+    </div>
+  </div>
+
+  {% if not logado %}
+  <div class="alert alert-danger">Acesso não autorizado.</div>
+  {% else %}
+
+  <!-- Status cards -->
+  <div class="row g-2 mb-3">
+    <div class="col-md-2 col-6">
+      <div class="qs-card text-center">
+        <div class="qs-stat text-info">{{ data.total_logs }}</div>
+        <div class="text-muted" style="font-size:0.7rem;">Total Logs</div>
+      </div>
+    </div>
+    <div class="col-md-2 col-6">
+      <div class="qs-card text-center">
+        <div class="qs-stat text-warning">{{ data.total_resultados }}</div>
+        <div class="text-muted" style="font-size:0.7rem;">c/ Resultado</div>
+      </div>
+    </div>
+    <div class="col-md-2 col-6">
+      <div class="qs-card text-center">
+        <div class="qs-stat text-success">{{ data.resultados_com_snapshot }}</div>
+        <div class="text-muted" style="font-size:0.7rem;">c/ Snapshot</div>
+      </div>
+    </div>
+    <div class="col-md-2 col-6">
+      <div class="qs-card text-center">
+        <div class="qs-stat {% if data.resultados_sem_snapshot > 0 %}text-danger{% else %}text-success{% endif %}">
+          {{ data.resultados_sem_snapshot }}
+        </div>
+        <div class="text-muted" style="font-size:0.7rem;">sem Snapshot</div>
+      </div>
+    </div>
+    <div class="col-md-2 col-6">
+      <div class="qs-card text-center">
+        <div class="qs-stat text-primary">{{ data.terminais }}</div>
+        <div class="text-muted" style="font-size:0.7rem;">Terminais</div>
+      </div>
+    </div>
+    <div class="col-md-2 col-6">
+      <div class="qs-card text-center">
+        <div class="qs-stat text-light">{{ data.positivos }}</div>
+        <div class="text-muted" style="font-size:0.7rem;">Positivos</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diagnóstico -->
+  <div class="qs-card mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0 text-warning"><i class="bi bi-clipboard-check me-1"></i>Diagnóstico da Amostra</h6>
+      <span class="badge {% if data.diagnostico.resultados_suficientes %}bg-success{% else %}bg-danger{% endif %} qs-badge">
+        {% if data.diagnostico.resultados_suficientes %}OK{% else %}INSUFICIENTE{% endif %}
+      </span>
+    </div>
+    <div class="row g-2">
+      <div class="col-md-6">
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Resultados mínimos necessários:</span>
+          <span>{{ data.diagnostico.min_resultados_needed }}</span>
+        </div>
+        <div class="qs-meter mt-1">
+          <div class="qs-meter-fill {% if data.diagnostico.resultados_suficientes %}bg-success{% elif data.total_resultados > 0 %}bg-warning{% else %}bg-danger{% endif %}"
+               style="width:{{ (data.total_resultados / data.diagnostico.min_resultados_needed * 100)|round|int if data.diagnostico.min_resultados_needed > 0 else 0 }}%"></div>
+        </div>
+        <div class="small text-muted mt-1">{{ data.total_resultados }} / {{ data.diagnostico.min_resultados_needed }} coletados</div>
+      </div>
+      <div class="col-md-6">
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Terminais mínimos necessários:</span>
+          <span>{{ data.diagnostico.min_terminal_needed }}</span>
+        </div>
+        <div class="qs-meter mt-1">
+          <div class="qs-meter-fill {% if data.diagnostico.terminais_suficientes %}bg-success{% elif data.terminais > 0 %}bg-warning{% else %}bg-danger{% endif %}"
+               style="width:{{ (data.terminais / data.diagnostico.min_terminal_needed * 100)|round|int if data.diagnostico.min_terminal_needed > 0 else 0 }}%"></div>
+        </div>
+        <div class="small text-muted mt-1">{{ data.terminais }} / {{ data.diagnostico.min_terminal_needed }} coletados</div>
+      </div>
+    </div>
+    <div class="mt-2 small text-muted">
+      <i class="bi bi-info-circle me-1"></i>
+      Variabilidade do score entre resultados: 
+      <strong class="{% if data.diagnostico.score_variabilidade == 'boa' %}text-success{% elif data.diagnostico.score_variabilidade == 'moderada' %}text-warning{% else %}text-danger{% endif %}">
+        {{ data.diagnostico.score_variabilidade }}
+      </strong>
+      (ideal: pelo menos 20 pontos de diferença entre médias de resultados diferentes)
+    </div>
+  </div>
+
+  <!-- Distribuição de Resultados -->
+  <div class="row g-2 mb-3">
+    <div class="col-md-6">
+      <div class="qs-card">
+        <h6 class="mb-2 text-warning"><i class="bi bi-pie-chart me-1"></i>Distribuição de Resultados</h6>
+        {% if data.distribuicao_resultados %}
+          {% for res, cnt in data.distribuicao_resultados.items() %}
+            {% set pct = (cnt / data.total_resultados * 100)|round(1) %}
+            {% set cls = 'success' if res in ['fechado','negociacao','proposta_enviada','interessado'] else 'danger' if res in ['perdido','sem_interesse','duplicado','cancelado','dados_incorretos'] else 'secondary' %}
+            <div class="d-flex justify-content-between small mb-1">
+              <span>{{ res.replace('_',' ') }}</span>
+              <span>{{ cnt }} ({{ pct }}%)</span>
+            </div>
+            <div class="qs-meter mb-2"><div class="qs-meter-fill bg-{{ cls }}" style="width:{{ pct }}%"></div></div>
+          {% endfor %}
+        {% else %}
+          <div class="text-muted small">Nenhum resultado registrado.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="qs-card">
+        <h6 class="mb-2 text-warning"><i class="bi bi-trophy me-1"></i>Score Médio por Resultado</h6>
+        {% if data.score_por_resultado %}
+          {% set max_score = data.score_por_resultado.values()|map(attribute='avg')|max %}
+          {% for res, stats in data.score_por_resultado.items() %}
+            {% set pct = (stats.avg / 100 * 100)|round %}
+            <div class="d-flex justify-content-between small mb-1">
+              <span>{{ res.replace('_',' ') }}</span>
+              <span class="text-info">{{ stats.avg }} (n={{ stats.n }})</span>
+            </div>
+            <div class="qs-meter mb-2">
+              <div class="qs-meter-fill bg-info" style="width:{{ pct }}%"></div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-muted small">Nenhum score registrado.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Faixas de Score -->
+  <div class="qs-card mb-3">
+    <h6 class="mb-2 text-warning"><i class="bi bi-layers me-1"></i>Resultados por Faixa de Score</h6>
+    <div class="table-responsive">
+      <table class="table table-dark table-sm small mb-0" style="border-color:#334155;">
+        <thead>
+          <tr>
+            <th>Faixa</th>
+            <th>Classificação</th>
+            {% for res in data.distribuicao_resultados.keys() %}
+            <th class="text-center">{{ res.replace('_','<br>')|safe }}</th>
+            {% endfor %}
+            <th class="text-center">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for faixa, faixa_info in data.faixas.items() %}
+          <tr>
+            <td>
+              {% set lo, hi = {'agir_agora': (60,100), 'alta_prioridade': (40,59), 'acompanhar': (20,39), 'revisar_dados': (0,19)}[faixa] %}
+              <span class="badge {% if faixa == 'agir_agora' %}bg-warning text-dark{% elif faixa == 'alta_prioridade' %}bg-info{% elif faixa == 'acompanhar' %}bg-primary{% else %}bg-secondary{% endif %} qs-badge">
+                {{ lo }}-{{ hi }}
+              </span>
+            </td>
+            <td>{{ faixa.replace('_',' ') }}</td>
+            {% for res in data.distribuicao_resultados.keys() %}
+            <td class="text-center">{{ faixa_info.get(res, 0) }}</td>
+            {% endfor %}
+            <td class="text-center text-warning">{{ faixa_info.values()|sum }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Vazamento Temporal -->
+  <div class="qs-card mb-3">
+    <h6 class="mb-2 text-warning"><i class="bi bi-shield-check me-1"></i>Integridade dos Snapshots</h6>
+    <div class="row g-2">
+      <div class="col-md-4">
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Com snapshot:</span>
+          <span class="text-success">{{ vazamento.com_snapshot }}</span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Sem snapshot:</span>
+          <span class="{% if vazamento.sem_snapshot > 0 %}text-danger{% else %}text-success{% endif %}">{{ vazamento.sem_snapshot }}</span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="d-flex justify-content-between small">
+          <span class="text-muted">Status:</span>
+          <span class="badge {% if vazamento.ok %}bg-success{% else %}bg-danger{% endif %} qs-badge">
+            {% if vazamento.ok %}OK{% else %}VAZAMENTO DETECTADO{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="small text-muted mt-2">
+      <i class="bi bi-info-circle me-1"></i>
+      Verifica se todo resultado registrado possui snapshot do score no momento do registro (anti-vazamento temporal).
+    </div>
+  </div>
+
+  <!-- Calibração -->
+  <div class="qs-card mb-3">
+    <h6 class="mb-2 text-warning"><i class="bi bi-graph-up-arrow me-1"></i>Calibração do Score</h6>
+    <div class="text-muted small">{{ calibracao.motivo }}</div>
+    <div class="mt-2 small text-muted">
+      <i class="bi bi-lightbulb me-1"></i>
+      Quando houver pelo menos {{ MIN_TERMINAIS }} resultados terminais e {{ MIN_RESULTADOS }} resultados totais, será possível:
+      <ul class="mt-1 mb-0">
+        <li>Calcular taxa de conversão (positivo/terminal) por faixa de score</li>
+        <li>Validar se scores mais altos realmente correlacionam com melhores outcomes</li>
+        <li>Calibrar os pesos dos componentes do score</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Distribuicao Atual dos Matches (Auditoria Global) -->
+  {% if global_audit and global_audit.get('estatisticas') %}
+  {% set e = global_audit['estatisticas'] %}
+  {% set fa = global_audit['distribuicao_faixas'] %}
+  {% set ca = global_audit['compressao'] %}
+  {% set comp = global_audit['componentes'] %}
+  <div class="qs-card mb-3" style="border-color:var(--wins-amber);">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0 text-warning"><i class="bi bi-globe me-1"></i>Distribuição atual dos matches</h6>
+      <span class="badge bg-warning text-dark qs-badge">{{ global_audit.metadados.formula_versao }}</span>
+    </div>
+    <div class="alert alert-warning small py-1 px-2 mb-2" style="font-size:0.7rem;">
+      <i class="bi bi-info-circle me-1"></i>
+      A distribuição atual do score não representa probabilidade de fechamento.
+      A avaliação de resultados utiliza snapshots históricos.
+    </div>
+
+    <div class="row g-2 mb-2">
+      <div class="col-md-2 col-4"><div class="small text-muted">Auditados</div><div class="fw-bold">{{ global_audit.processamento.total_processado }}</div></div>
+      <div class="col-md-2 col-4"><div class="small text-muted">Score únicos</div><div class="fw-bold text-info">{{ e.unicos }}</div></div>
+      <div class="col-md-2 col-4"><div class="small text-muted">Mínimo</div><div class="fw-bold">{{ e.min }}</div></div>
+      <div class="col-md-2 col-4"><div class="small text-muted">Máximo</div><div class="fw-bold">{{ e.max }}</div></div>
+      <div class="col-md-2 col-4"><div class="small text-muted">Média</div><div class="fw-bold">{{ e.media }}</div></div>
+      <div class="col-md-2 col-4"><div class="small text-muted">Mediana</div><div class="fw-bold">{{ e.mediana }}</div></div>
+    </div>
+
+    <div class="row g-2 mb-2">
+      <div class="col-md-3"><div class="small text-muted">Desvio padrão: <strong>{{ e.desvio_padrao }}</strong></div></div>
+      <div class="col-md-3"><div class="small text-muted">P10: <strong>{{ e.p10 }}</strong>  P25: <strong>{{ e.p25 }}</strong>  P50: <strong>{{ e.p50 }}</strong></div></div>
+      <div class="col-md-3"><div class="small text-muted">P75: <strong>{{ e.p75 }}</strong>  P90: <strong>{{ e.p90 }}</strong>  P99: <strong>{{ e.p99 }}</strong></div></div>
+      <div class="col-md-3"><div class="small text-muted">Amplitude: <strong>{{ e.amplitude }}</strong>/100</div></div>
+    </div>
+
+    <div class="table-responsive small mb-2">
+      <table class="table table-dark table-sm mb-0" style="border-color:#334155;font-size:0.7rem;">
+        <thead><tr><th>Classificação</th><th>Faixa</th><th class="text-end">Qtd</th><th class="text-end">%</th><th class="text-end">Score médio</th></tr></thead>
+        <tbody>
+          {% for fname in ['revisar_dados','baixa_prioridade','acompanhar','alta_prioridade','agir_agora'] %}
+          {% set f = fa.get(fname, {}) %}
+          <tr>
+            <td><span class="badge {% if fname == 'agir_agora' %}bg-warning text-dark{% elif fname == 'alta_prioridade' %}bg-info{% elif fname == 'acompanhar' %}bg-primary{% elif fname == 'baixa_prioridade' %}bg-secondary{% else %}bg-dark text-muted{% endif %} qs-badge">{{ fname.replace('_',' ') }}</span></td>
+            <td>{% if fname == 'revisar_dados' %}0-19{% elif fname == 'baixa_prioridade' %}20-39{% elif fname == 'acompanhar' %}40-59{% elif fname == 'alta_prioridade' %}60-79{% else %}80-100{% endif %}</td>
+            <td class="text-end">{{ f.get('quantidade', 0) }}</td>
+            <td class="text-end">{{ f.get('percentual', 0) }}%</td>
+            <td class="text-end">{{ f.get('score_medio', '-') or '-' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row g-2 small">
+      <div class="col-md-6">
+        <div class="text-muted">Componentes:</div>
+        <ul class="list-unstyled mb-0" style="font-size:0.65rem;">
+          {% for cname, cdata in comp.items() %}
+          <li><span class="text-muted">{{ cname }}:</span> média {{ cdata.get('media','?') }}/{{ cdata.get('maximo','?') }} ({{ cdata.get('unicos',0) }} valores únicos)</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="col-md-6">
+        <div class="text-muted">Compressão:</div>
+        <ul class="list-unstyled mb-0" style="font-size:0.65rem;">
+          <li>{{ ca.get('pct_modal_5',0) }}% no intervalo modal de 5 pts</li>
+          <li>{{ ca.get('ratio_unicos_total',0) }} scores únicos / total</li>
+          <li>Alertas: 
+            {% for a in ca.get('alertas', []) %}
+            <span class="badge bg-danger qs-badge">{{ a }}</span>
+            {% else %}
+            <span class="text-success">Nenhum</span>
+            {% endfor %}
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="small text-muted mt-2">
+      Última auditoria: {{ global_audit.metadados.data_auditoria[:10] }} ({{ global_audit.metadados.tempo_execucao_s }}s)
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Legenda -->
+  <div class="qs-card">
+    <div class="small text-muted d-flex flex-wrap gap-3">
+      <span><span class="badge bg-warning text-dark qs-badge me-1">60-100</span> Agir Agora</span>
+      <span><span class="badge bg-info qs-badge me-1">40-59</span> Alta Prioridade</span>
+      <span><span class="badge bg-primary qs-badge me-1">20-39</span> Acompanhar</span>
+      <span><span class="badge bg-secondary qs-badge me-1">0-19</span> Revisar Dados</span>
+      <span class="text-muted">|</span>
+      <span>Última atualização: {{ now }}</span>
+    </div>
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}

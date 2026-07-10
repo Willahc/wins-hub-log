@@ -580,4 +580,40 @@
   </div>
 </div>
 
+
+{% if intel_stats and intel_stats.status == 'ok' %}
+<div class="card bg-dark border-secondary mt-4">
+  <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+    <span class="text-white"><i class="bi bi-sign-turn-right text-warning me-1"></i> Inteligência de Rota</span>
+    <a href="/inteligencia" class="btn btn-sm btn-outline-warning py-0">Abrir painel</a>
+  </div>
+  <div class="card-body">
+    <div class="row g-2 mb-3">
+      <div class="col-md-3 small text-muted">Pontos apoio<br><span class="text-white fs-5">{{ "{:,.0f}".format(intel_stats.total_pontos_apoio or 0).replace(",", ".") }}</span></div>
+      <div class="col-md-3 small text-muted">Postos ANP<br><span class="text-white fs-5">{{ "{:,.0f}".format(intel_stats.total_postos or 0).replace(",", ".") }}</span></div>
+      <div class="col-md-3 small text-muted">RNTRC<br><span class="text-white fs-5">{{ "{:,.0f}".format(intel_stats.total_transportadores or 0).replace(",", ".") }}</span></div>
+      <div class="col-md-3 small text-muted">Trechos PRF<br><span class="text-white fs-5">{{ "{:,.0f}".format(intel_stats.total_risco_prf or 0).replace(",", ".") }}</span></div>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <h6 class="text-white-50 small">Top UFs por Comex (valor)</h6>
+        <ul class="list-unstyled small mb-0">
+        {% for r in intel_stats.top_uf_comex or [] %}
+          <li class="d-flex justify-content-between border-bottom border-secondary py-1"><span>{{ r.uf }}</span><span>{{ r.total }}</span></li>
+        {% else %}<li class="text-muted">—</li>{% endfor %}
+        </ul>
+      </div>
+      <div class="col-md-6">
+        <h6 class="text-white-50 small">Top municípios score logístico</h6>
+        <ul class="list-unstyled small mb-0">
+        {% for r in intel_stats.top_municipios_score or [] %}
+          <li class="d-flex justify-content-between border-bottom border-secondary py-1"><span>{{ r.uf }} · {{ r.municipio }}</span><span>{{ r.score_logistico }}</span></li>
+        {% else %}<li class="text-muted">—</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}

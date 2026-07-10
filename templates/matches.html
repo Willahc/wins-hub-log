@@ -1,10 +1,17 @@
-{% extends "base.html" %}
-{% block title %}Matches Preditivos — WiNS Hub Log{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Matches Preditivos ÔÇö WiNS Hub Log{% endblock %}
 {% block title_header %}Matches Preditivos{% endblock %}
 
 {% block content %}
+<div class="alert alert-dark border-secondary py-2 mb-3 small">
+  <i class="bi bi-info-circle text-warning me-1"></i>
+  Enriquecimento de rota (risco PRF, pontos de apoio, for├ºa log├¡stica por UF/munic├¡pio) dispon├¡vel em
+  <a href="/inteligencia" class="text-warning">Intelig├¬ncia de Rota</a>
+  e APIs <code>/api/inteligencia/*</code>. Painel lateral por UF nas pr├│ximas itera├º├Áes com origem/destino estruturados.
+</div>
 
-{# ── Cards de stats de Match ──────────────────────────────────────────────── #}
+
+{# ÔöÇÔöÇ Cards de stats de Match ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ #}
 <div class="row g-2 mb-3">
   <div class="col-6 col-md-3">
     <div class="stat-card p-3">
@@ -31,12 +38,33 @@
     <div class="stat-card p-3">
       <div class="text-muted small mb-1">Fechados (Sucesso)</div>
       <div class="stat-num text-success">{{ stats.fechados }}</div>
-      <div class="text-muted" style="font-size:0.75rem">Geração de frete concluída</div>
+      <div class="text-muted" style="font-size:0.75rem">Gera├º├úo de frete conclu├¡da</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="text-muted small mb-1">Agir Agora</div>
+      <div class="stat-num text-warning" id="stat-agir-agora">{{ stats.get('agir_agora', 0) }}</div>
+      <div class="text-muted" style="font-size:0.75rem">Score oportunidade >= 80</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="text-muted small mb-1">Alta Prioridade</div>
+      <div class="stat-num text-info" id="stat-alta-prioridade">{{ stats.get('alta_prioridade_op', 0) }}</div>
+      <div class="text-muted" style="font-size:0.75rem">Score oportunidade 60-79</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card p-3">
+      <div class="text-muted small mb-1">Acompanhar</div>
+      <div class="stat-num text-secondary" id="stat-acompanhar">{{ stats.get('acompanhar', 0) }}</div>
+      <div class="text-muted" style="font-size:0.75rem">Score oportunidade 40-59</div>
     </div>
   </div>
 </div>
 
-{# ── Barra de filtros ─────────────────────────────────────────────────────── #}
+{# ÔöÇÔöÇ Barra de filtros ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ #}
 <div class="filter-bar p-3 mb-3">
   <form method="GET" action="{{ url_for('matches_lista') }}" class="row g-2 align-items-end">
     <div class="col-12 col-md-3">
@@ -58,7 +86,7 @@
       <select name="prioridade" class="form-select form-select-sm">
         <option value="">Todas</option>
         <option value="Alta" {% if filtros.prioridade == 'Alta' %}selected{% endif %}>Alta</option>
-        <option value="Média" {% if filtros.prioridade == 'Média' %}selected{% endif %}>Média</option>
+        <option value="M├®dia" {% if filtros.prioridade == 'M├®dia' %}selected{% endif %}>M├®dia</option>
         <option value="Baixa" {% if filtros.prioridade == 'Baixa' %}selected{% endif %}>Baixa</option>
       </select>
     </div>
@@ -93,7 +121,7 @@
       <label class="form-label small text-muted mb-1">Fila Comercial / Tel</label>
       <select name="telefone" class="form-select form-select-sm">
         <option value="">Todos</option>
-        <option value="piloto_ideal" {% if filtros.telefone == 'piloto_ideal' %}selected{% endif %}>Fila A — Piloto Ideal</option>
+        <option value="piloto_ideal" {% if filtros.telefone == 'piloto_ideal' %}selected{% endif %}>Fila A ÔÇö Piloto Ideal</option>
         <option value="classe_aplus" {% if filtros.telefone == 'classe_aplus' %}selected{% endif %}>Classe Comercial A+</option>
         <option value="classe_a" {% if filtros.telefone == 'classe_a' %}selected{% endif %}>Classe Comercial A</option>
         <option value="classe_b" {% if filtros.telefone == 'classe_b' %}selected{% endif %}>Classe Comercial B</option>
@@ -102,21 +130,38 @@
         <option value="sem_transp" {% if filtros.telefone == 'sem_transp' %}selected{% endif %}>Transportadora sem tel</option>
         <option value="sem_embarcador" {% if filtros.telefone == 'sem_embarcador' %}selected{% endif %}>Embarcador sem tel</option>
         <option value="sem_nenhum" {% if filtros.telefone == 'sem_nenhum' %}selected{% endif %}>Sem telefone nenhum</option>
-        <option value="whatsapp" {% if filtros.telefone == 'whatsapp' %}selected{% endif %}>WhatsApp possível</option>
+        <option value="whatsapp" {% if filtros.telefone == 'whatsapp' %}selected{% endif %}>WhatsApp poss├¡vel</option>
       </select>
     </div>
     <div class="col-6 col-md-2">
       <label class="form-label small text-muted mb-1">Ordenar por</label>
       <select name="ordenar" class="form-select form-select-sm">
-        <option value="score_match" {% if filtros.ordenar == 'score_match' %}selected{% endif %}>Score Match (Padrão)</option>
+        <option value="score_match" {% if filtros.ordenar == 'score_match' %}selected{% endif %}>Score Match (Padr├úo)</option>
         <option value="score_comercial" {% if filtros.ordenar == 'score_comercial' %}selected{% endif %}>Prioridade Comercial</option>
+        <option value="oportunidade" {% if filtros.ordenar == 'oportunidade' %}selected{% endif %}>Oportunidade</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-1">
+      <label class="form-label small text-muted mb-1">Score Oport.</label>
+      <input type="number" name="score_op_min" class="form-control form-control-sm"
+             placeholder="M├¡n" value="{{ filtros.score_op_min }}" min="0" max="100">
+    </div>
+    <div class="col-6 col-md-1">
+      <label class="form-label small text-muted mb-1">Class. Oport.</label>
+      <select name="classif_op" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        <option value="agir_agora" {% if filtros.classif_op == 'agir_agora' %}selected{% endif %}>Agir Agora</option>
+        <option value="alta_prioridade" {% if filtros.classif_op == 'alta_prioridade' %}selected{% endif %}>Alta Prioridade</option>
+        <option value="acompanhar" {% if filtros.classif_op == 'acompanhar' %}selected{% endif %}>Acompanhar</option>
+        <option value="baixa_prioridade" {% if filtros.classif_op == 'baixa_prioridade' %}selected{% endif %}>Baixa Prioridade</option>
+        <option value="revisar_dados" {% if filtros.classif_op == 'revisar_dados' %}selected{% endif %}>Revisar Dados</option>
       </select>
     </div>
     <div class="col-6 col-md-2">
       <div class="form-check form-switch ms-1 mb-1">
         <input class="form-check-input" type="checkbox" name="fu_vencido" value="1" id="fuCheck"
                {% if filtros.fu_vencido == '1' %}checked{% endif %}>
-        <label class="form-check-label small" for="fuCheck">Só Vencidos/Hoje</label>
+        <label class="form-check-label small" for="fuCheck">S├│ Vencidos/Hoje</label>
       </div>
     </div>
     <div class="col-12 col-md-2 d-flex gap-1">
@@ -130,17 +175,17 @@
   </form>
 </div>
 
-{# ── Toolbar: gerar matches / exportar ────────────────────────────────────── #}
+{# ÔöÇÔöÇ Toolbar: gerar matches / exportar ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ #}
 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
   <div class="text-muted small">
     <strong class="text-white">{{ total_matches }}</strong> matches cruzados preditivos
     {% if total_pages > 1 %}
-      &nbsp;·&nbsp;página <strong class="text-white">{{ page }}</strong>/{{ total_pages }}
-      (mostrando {{ (page-1) * page_size + 1 }}–{{ [page * page_size, total_matches]|min }})
+      &nbsp;┬À&nbsp;p├ígina <strong class="text-white">{{ page }}</strong>/{{ total_pages }}
+      (mostrando {{ (page-1) * page_size + 1 }}ÔÇô{{ [page * page_size, total_matches]|min }})
     {% endif %}
   </div>
   <div class="d-flex gap-2 flex-wrap align-items-center">
-    {# Botão Gerar Matches #}
+    {# Bot├úo Gerar Matches #}
     <form method="POST" action="/matches/gerar">
       {% if filtros.corredor %}
         <input type="hidden" name="corredor" value="{{ filtros.corredor }}">
@@ -165,8 +210,33 @@
   </div>
 </div>
 
-{# ── Tabela ───────────────────────────────────────────────────────────────── #}
+{# ÔöÇÔöÇ Tabela ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ #}
 {% if matches %}
+
+{% set oportunidade_label = {"agir_agora": "Agir Agora", "alta_prioridade": "Alta Prioridade", "acompanhar": "Acompanhar", "baixa_prioridade": "Baixa Prioridade", "revisar_dados": "Revisar Dados"} %}
+{% set oportunidade_badge_class = {"agir_agora": "bg-warning text-dark", "alta_prioridade": "bg-info", "acompanhar": "bg-primary", "baixa_prioridade": "bg-secondary", "revisar_dados": "bg-dark text-muted"} %}
+
+{% if ranking %}
+<div class="alert alert-warning bg-opacity-10 border-warning mb-3 py-2">
+  <div class="d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-trophy-fill text-warning"></i>
+    <strong class="text-warning small">Melhores oportunidades agora</strong>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    {% for m in ranking %}
+    {% set op = m.oportunidade or {} %}
+    <a href="#row-{{ m.id }}" class="text-decoration-none">
+      <span class="badge {{ oportunidade_badge_class.get(op.get('classificacao_oportunidade'), 'bg-secondary') }} px-2 py-1" style="font-size:0.65rem; cursor:pointer;">
+        <strong>{{ op.get('score_oportunidade', 0) }}</strong>
+        {{ m.transportadora.razao_social or m.transportadora.nome_rntrc or 'N/A' }}
+        ({{ m.cidade_origem or '?' }}/{{ m.uf_origem or '?' }})
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <div class="table-responsive">
   <table class="table table-sm table-hover align-middle mb-0">
     <thead style="background: #1e293b; position:sticky; top:0; z-index:1;">
@@ -175,8 +245,10 @@
         <th>Corredor</th>
         <th>Transportadora (Origem)</th>
         <th>Embarcador (Destino)</th>
-        <th>Tipo provável</th>
+        <th>Tipo prov├ível</th>
         <th>Status</th>
+        <th>Oportunidade</th>
+        <th>Pr├│x. A├º├úo</th>
         <th></th>
       </tr>
     </thead>
@@ -186,14 +258,14 @@
         <td>
           <div class="d-flex align-items-center gap-1">
             <span class="radar-score-indicator" style="font-size: 1.1rem;">{{ m.score_match }}</span>
-            <span class="badge-wins badge-prio-{{ 'alta' if m.prioridade == 'Alta' else 'media' if m.prioridade == 'Média' else 'baixa' }}">
+            <span class="badge-wins badge-prio-{{ 'alta' if m.prioridade == 'Alta' else 'media' if m.prioridade == 'M├®dia' else 'baixa' }}">
               {{ m.prioridade }}
             </span>
           </div>
           <div class="text-muted small mt-1" style="font-size: 0.72rem;">
-            Prospecção: <span id="prop-total-{{ m.id }}">{{ m.prospeccao_total }}</span> ações
+            Prospec├º├úo: <span id="prop-total-{{ m.id }}">{{ m.prospeccao_total }}</span> a├º├Áes
             <div id="prop-meta-{{ m.id }}" style="font-size:0.68rem; {% if m.prospeccao_total == 0 %}display:none;{% endif %}">
-              Última: <strong class="text-light" id="prop-status-{{ m.id }}">{{ m.prospeccao_ultimo_status }}</strong> 
+              ├Ültima: <strong class="text-light" id="prop-status-{{ m.id }}">{{ m.prospeccao_ultimo_status }}</strong> 
               (<span id="prop-data-{{ m.id }}">{{ m.prospeccao_ultima_data }}</span>)
             </div>
           </div>
@@ -208,6 +280,31 @@
             </div>
           {% endif %}
           
+          {# Explicabilidade do Score do Match #}
+          {% set exp = m.explicacao|default({}) %}
+          {% if exp.get('confianca_label') %}
+          <div class="d-flex flex-wrap gap-1 mt-1">
+            <span class="badge {% if exp.get('confianca_label') == 'alta' %}bg-success{% elif exp.get('confianca_label') == 'boa' %}bg-info{% elif exp.get('confianca_label') == 'parcial' %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="font-size:0.55rem;padding:2px 4px;">
+              <i class="bi bi-shield-check me-1"></i>{{ exp.get('confianca_label') }}
+            </span>
+            <span class="badge {% if exp.get('classificacao') in ('muito_forte','forte') %}bg-success{% elif exp.get('classificacao') == 'medio' %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="font-size:0.55rem;padding:2px 4px;">
+              <i class="bi bi-graph-up me-1"></i>{{ exp.get('classificacao') }}
+            </span>
+            {% set rv = exp.get('score_retorno_vazio', 0) %}
+            {% if rv %}
+            <span class="badge {% if rv >= 40 %}bg-success{% elif rv >= 20 %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="font-size:0.55rem;padding:2px 4px;" title="Retorno vazio">
+              <i class="bi bi-arrow-return-left me-1"></i>{{ rv }}
+            </span>
+            {% endif %}
+            {% set rp = exp.get('risco_penalidade', 0) %}
+            {% if rp > 0 %}
+            <span class="badge bg-danger bg-opacity-75" style="font-size:0.55rem;padding:2px 4px;" title="Penalidade de risco">
+              <i class="bi bi-exclamation-triangle me-1"></i>-{{ rp }}%
+            </span>
+            {% endif %}
+          </div>
+          {% endif %}
+
           {# Badge de Cobertura de Contatos (Tarefa /matches) #}
           {% set t_has = (m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()) or (m.transportadora.email and m.transportadora.email.strip()) or (m.transportadora.socios and m.transportadora.socios.strip()) %}
           {% set e_has = (m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()) or (m.embarcador.email and m.embarcador.email.strip()) or (m.embarcador.site and m.embarcador.site.strip()) %}
@@ -223,7 +320,7 @@
             {% endif %}
           </div>
 
-          {# Badges Específicas de Telefone (Validação de Telefones) #}
+          {# Badges Espec├¡ficas de Telefone (Valida├º├úo de Telefones) #}
           {% set t_tel = (m.transportadora and ((m.transportadora.telefone and m.transportadora.telefone.strip()) or (m.transportadora.telefone_normalizado and m.transportadora.telefone_normalizado.strip()))) or False %}
           {% set e_tel = (m.embarcador and ((m.embarcador.telefone and m.embarcador.telefone.strip()) or (m.embarcador.telefone_normalizado and m.embarcador.telefone_normalizado.strip()))) or False %}
           {% set t_wa = (m.transportadora and m.transportadora.whatsapp_possivel) or False %}
@@ -256,7 +353,7 @@
             
             {% if t_wa or e_wa %}
               <span class="badge bg-success bg-opacity-25 text-success border border-success" style="font-size: 0.62rem; padding: 2px 4px;">
-                <i class="bi bi-whatsapp me-1"></i>WhatsApp possível
+                <i class="bi bi-whatsapp me-1"></i>WhatsApp poss├¡vel
               </span>
             {% endif %}
           </div>
@@ -292,7 +389,7 @@
               {% endif %}
               {% if missing_address %}
                 <span class="badge bg-warning bg-opacity-25 text-warning border border-warning" style="font-size: 0.62rem; padding: 2px 4px;">
-                  Faltando endereço
+                  Faltando endere├ºo
                 </span>
               {% endif %}
               {% if missing_qsa %}
@@ -303,20 +400,20 @@
             {% endif %}
           </div>
           
-          {# Indicador Geográfico (Validação Geográfica) #}
+          {# Indicador Geogr├ífico (Valida├º├úo Geogr├ífica) #}
           <div class="mt-1" style="font-size: 0.72rem;">
             {% if m.distancia_km is not none and m.precisao_geografica_match != 'insuficiente' %}
               {% if m.distancia_km == 0 and m.precisao_geografica_match == 'cidade' %}
                 <span class="badge bg-success bg-opacity-75 text-white" style="font-size: 0.65rem;">
-                  <i class="bi bi-geo-alt-fill me-1"></i>Mesmo município
+                  <i class="bi bi-geo-alt-fill me-1"></i>Mesmo munic├¡pio
                 </span>
               {% elif m.distancia_km <= 30 %}
                 <span class="badge bg-success bg-opacity-75 text-white" style="font-size: 0.65rem;">
-                  <i class="bi bi-geo-alt me-1"></i>Próximo
+                  <i class="bi bi-geo-alt me-1"></i>Pr├│ximo
                 </span>
               {% elif m.distancia_km <= 150 %}
                 <span class="badge bg-warning bg-opacity-75 text-dark" style="font-size: 0.65rem;">
-                  <i class="bi bi-geo-alt me-1"></i>Médio
+                  <i class="bi bi-geo-alt me-1"></i>M├®dio
                 </span>
               {% else %}
                 <span class="badge bg-danger bg-opacity-75 text-white" style="font-size: 0.65rem;">
@@ -325,9 +422,9 @@
               {% endif %}
               
               <div class="text-light mt-1">
-                Distância: <strong>{{ "%.1f"|format(m.distancia_km) }} km</strong>
+                Dist├óncia: <strong>{{ "%.1f"|format(m.distancia_km) }} km</strong>
                 {% if m.precisao_geografica_match == 'cidade' %}
-                  <span class="text-muted d-block" style="font-size: 0.65rem;">(distância estimada por cidade)</span>
+                  <span class="text-muted d-block" style="font-size: 0.65rem;">(dist├óncia estimada por cidade)</span>
                 {% endif %}
               </div>
             {% else %}
@@ -337,13 +434,13 @@
             {% endif %}
           </div>
           
-          {# Cadência Comercial do Match (Tarefa 6) #}
+          {# Cad├¬ncia Comercial do Match (Tarefa 6) #}
           {% if m.data_proxima_acao %}
             {% set vencido = m.data_proxima_acao < hoje and m.status not in ['Fechado', 'Descartado'] %}
             <div class="mt-1 p-1 bg-dark rounded border border-secondary" style="font-size: 0.7rem; max-width: 200px;">
               <span class="badge-wins badge-temp-{{ m.temperatura | lower }}" style="font-size:0.6rem;">{{ m.temperatura }}</span>
               <div class="text-light mt-1 text-truncate">
-                Ação: <strong>{{ m.proxima_acao or 'Sem ação' }}</strong>
+                A├º├úo: <strong>{{ m.proxima_acao or 'Sem a├º├úo' }}</strong>
               </div>
               <div class="mt-1">
                 Data: <span class="badge {{ 'bg-danger animate-pulse' if vencido else 'bg-secondary' }}" style="font-size:0.62rem;">
@@ -362,14 +459,14 @@
         <td>
           <div class="fw-semibold text-white small" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
                title="{{ m.transportadora.razao_social or m.transportadora.nome_rntrc }}">
-            {{ m.transportadora.razao_social or m.transportadora.nome_rntrc or '—' }}
+            {{ m.transportadora.razao_social or m.transportadora.nome_rntrc or 'ÔÇö' }}
           </div>
           <small class="text-muted">{{ m.cidade_origem }}/{{ m.uf_origem }}</small>
         </td>
         <td>
           <div class="fw-semibold text-white small" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
                title="{{ m.embarcador.razao_social or m.embarcador.nome_fantasia }}">
-            {{ m.embarcador.razao_social or m.embarcador.nome_fantasia or '—' }}
+            {{ m.embarcador.razao_social or m.embarcador.nome_fantasia or 'ÔÇö' }}
           </div>
           <small class="text-muted">{{ m.cidade_destino }}/{{ m.uf_destino }}</small>
         </td>
@@ -377,7 +474,7 @@
           <span class="badge" style="background:#334155;">
             {{ m.embarcador.setor_predito or 'indefinido' }}
           </span>
-          <div class="text-muted small" style="font-size: 0.7rem;">{{ m.embarcador.tipo_carga_provavel or 'não identificado' }}</div>
+          <div class="text-muted small" style="font-size: 0.7rem;">{{ m.embarcador.tipo_carga_provavel or 'n├úo identificado' }}</div>
         </td>
         <td>
           <span class="badge-wins badge-status-{{ m.status | lower | replace(' ', '_') }}" id="badge-{{ m.id }}">
@@ -385,244 +482,60 @@
           </span>
         </td>
         <td>
+          {% set op = m.oportunidade or {} %}
+          {% set op_score = op.get('score_oportunidade', 0) %}
+          {% set op_class = op.get('classificacao_oportunidade', 'revisar_dados') %}
+          {% set op_badge_cls = oportunidade_badge_class.get(op_class, 'bg-secondary') %}
+          <span class="badge {{ op_badge_cls }}" style="font-size:0.65rem;" id="op-badge-{{ m.id }}">
+            {{ op_score }} — {{ oportunidade_label.get(op_class, op_class) }}
+          </span>
+          {% if op.get('componentes') %}
+          <div class="text-muted mt-1" style="font-size:0.6rem; max-width:120px;">
+            {% for k, v in op.get('componentes', {}).items() %}
+              <span>{{ k }}: {{ v.get('pontos', 0) }}/{{ v.get('maximo', v.get('maximo_penalidade', 15)) }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </td>
+        <td style="font-size:0.7rem; max-width:120px;">
+          {% set prox = op.get('proxima_acao_sugerida', '') %}
+          {% if prox and prox != 'Revisar dados' %}
+            <span class="text-light">{{ prox }}</span>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+          {% if op.get('motivos_prioridade') %}
+          <div class="text-muted mt-1" style="font-size:0.6rem;">
+            {% for motivo in op.get('motivos_prioridade', []) %}
+              <div><i class="bi bi-arrow-up-circle-fill text-warning" style="font-size:0.45rem;"></i> {{ motivo }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if op.get('alertas_operacionais') %}
+          <div class="mt-1" style="font-size:0.6rem;">
+            {% for alerta in op.get('alertas_operacionais', []) %}
+              <span class="badge bg-danger bg-opacity-25 text-danger" style="font-size:0.55rem;padding:1px 3px;">{{ alerta }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </td>
+        <td>
           <button class="btn btn-sm btn-outline-secondary py-0 px-2"
-                  data-bs-toggle="offcanvas" data-bs-target="#painel-{{ m.id }}"
+                  data-bs-toggle="offcanvas" data-bs-target="#matchInteligenciaOffcanvas" data-match-id="{{ m.id }}"
                   onclick="carregarProspeccao({{ m.id }})">
             <i class="bi bi-pencil-square"></i>
           </button>
         </td>
       </tr>
 
-      {# Offcanvas de Detalhes e CRM de Match #}
-      <div class="offcanvas offcanvas-end" id="painel-{{ m.id }}" style="width:420px">
-        <div class="offcanvas-header border-bottom" style="border-color:#334155 !important">
-          <div>
-            <h6 class="offcanvas-title mb-0">Match Comercial Preditivo</h6>
-            <small class="text-muted">Corredor: {{ m.corredor }} · Score Match: {{ m.score_match }} · Comercial: {{ m.score_prioridade_comercial|default('N/A', true) }} ({{ m.classe_prioridade_comercial|default('N/A', true) }})</small>
-          </div>
-          <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-        </div>
-        <div class="offcanvas-body">
-          
-          {# Detalhamento de Entidades #}
-          <div class="mb-3 p-2 bg-dark rounded small border border-secondary">
-            <div class="text-white fw-bold mb-1"><i class="bi bi-truck me-1 text-warning"></i>Transportadora (Oferta)</div>
-            <div>{{ m.transportadora.razao_social or m.transportadora.nome_rntrc }}</div>
-            <div class="text-muted">Local: {{ m.cidade_origem }}/{{ m.uf_origem }}</div>
-            {% if m.transportadora.telefone_normalizado or m.transportadora.telefone %}
-              <div>Contato: <i class="bi bi-telephone text-success"></i> 
-                {{ m.transportadora.telefone_normalizado or m.transportadora.telefone }}
-                {% if m.transportadora.whatsapp_possivel %}
-                  <span class="badge bg-success bg-opacity-25 text-success border border-success ms-1" style="font-size: 0.6rem;">WA</span>
-                {% endif %}
-              </div>
-            {% endif %}
-            
-            <hr class="my-2 border-secondary">
-            
-            <div class="text-white fw-bold mb-1"><i class="bi bi-building me-1 text-warning"></i>Embarcador (Demanda)</div>
-            <div>{{ m.embarcador.razao_social or m.embarcador.nome_fantasia }}</div>
-            <div class="text-muted">Local: {{ m.cidade_destino }}/{{ m.uf_destino }}</div>
-            {% if m.embarcador.telefone_normalizado or m.embarcador.telefone %}
-              <div>Contato: <i class="bi bi-telephone text-success"></i> 
-                {{ m.embarcador.telefone_normalizado or m.embarcador.telefone }}
-                {% if m.embarcador.whatsapp_possivel %}
-                  <span class="badge bg-success bg-opacity-25 text-success border border-success ms-1" style="font-size: 0.6rem;">WA</span>
-                {% endif %}
-              </div>
-            {% endif %}
-            {% if m.embarcador.email %}<div>E-mail: {{ m.embarcador.email }}</div>{% endif %}
-          </div>
-
-          {# Justificativa Analítica #}
-          <div class="card bg-dark border-warning mb-3">
-            <div class="card-body p-2 small">
-              <div class="text-white fw-bold mb-1"><i class="bi bi-lightning-charge me-1 text-warning"></i>Por que combina?</div>
-              <div class="text-light mb-2" style="font-size: 0.78rem;">{{ m.justificativa }}</div>
-              
-              <hr class="my-1 border-secondary">
-              
-              <div class="row g-1 text-muted" style="font-size:0.75rem;">
-                <div class="col-6">Corredor: {{ m.score_corredor }}/100</div>
-                <div class="col-6">Localidade: {{ m.score_localizacao }}/100</div>
-                <div class="col-6">Setor: {{ m.score_setor }}/100</div>
-                <div class="col-6">Carga: {{ m.score_carga }}/100</div>
-                <div class="col-6">CRM: {{ m.score_crm }}/100</div>
-              </div>
-            </div>
-          </div>
-
-          {# Prospecção Assistida & Cadência #}
-          <div class="card bg-dark border-info mb-3">
-            <div class="card-header bg-transparent border-secondary text-info fw-bold py-2">
-              <i class="bi bi-chat-left-text me-1"></i>Prospecção Assistida & Cadência
-            </div>
-            <div class="card-body p-2">
-              <ul class="nav nav-tabs nav-justified mb-2" id="tab-prosp-{{ m.id }}" role="tablist" style="font-size: 0.75rem;">
-                <li class="nav-item">
-                  <button class="nav-link active py-1" data-bs-toggle="tab" data-bs-target="#prosp-emb-{{ m.id }}" type="button">Embarcador</button>
-                </li>
-                <li class="nav-item">
-                  <button class="nav-link py-1" data-bs-toggle="tab" data-bs-target="#prosp-transp-{{ m.id }}" type="button">Transportadora</button>
-                </li>
-              </ul>
-              
-              <div class="tab-content" id="tab-content-prosp-{{ m.id }}">
-                <!-- Tab Embarcador -->
-                <div class="tab-pane fade show active" id="prosp-emb-{{ m.id }}">
-                  <div class="mb-2">
-                    <label class="form-label small text-muted mb-0">Assunto de e-mail sugerido</label>
-                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="assunto-emb-{{ m.id }}" readonly style="font-size: 0.75rem;">
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label small text-muted mb-0">Mensagem de abordagem</label>
-                    <textarea class="form-control form-control-sm bg-dark text-white border-secondary" id="msg-emb-{{ m.id }}" rows="6" readonly style="font-size: 0.78rem;"></textarea>
-                  </div>
-                  <div class="d-flex gap-1">
-                    <button class="btn btn-sm btn-outline-info flex-grow-1" onclick="copiarMensagem('msg-emb-{{ m.id }}', {{ m.id }}, 'Embarcador', 'Copiada')">
-                      <i class="bi bi-copy me-1"></i>Copiar
-                    </button>
-                    <a href="#" target="_blank" class="btn btn-sm btn-success" id="btn-wa-emb-{{ m.id }}" onclick="logarAcao({{ m.id }}, 'WhatsApp', 'Embarcador', 'Enviada manualmente')">
-                      <i class="bi bi-whatsapp me-1"></i>WhatsApp
-                    </a>
-                  </div>
-                </div>
-                
-                <!-- Tab Transportadora -->
-                <div class="tab-pane fade" id="prosp-transp-{{ m.id }}">
-                  <div class="mb-2">
-                    <label class="form-label small text-muted mb-0">Mensagem de abordagem</label>
-                    <textarea class="form-control form-control-sm bg-dark text-white border-secondary" id="msg-transp-{{ m.id }}" rows="6" readonly style="font-size: 0.78rem;"></textarea>
-                  </div>
-                  <div class="d-flex gap-1">
-                    <button class="btn btn-sm btn-outline-info flex-grow-1" onclick="copiarMensagem('msg-transp-{{ m.id }}', {{ m.id }}, 'Transportadora', 'Copiada')">
-                      <i class="bi bi-copy me-1"></i>Copiar
-                    </button>
-                    <a href="#" target="_blank" class="btn btn-sm btn-success" id="btn-wa-transp-{{ m.id }}" onclick="logarAcao({{ m.id }}, 'WhatsApp', 'Transportadora', 'Enviada manualmente')">
-                      <i class="bi bi-whatsapp me-1"></i>WhatsApp
-                    </a>
-                  </div>
-                </div>
-              </div>
-              
-              <hr class="my-2 border-secondary">
-              
-              <!-- Registrar Log Manual / Cadência Comercial (Tarefa 5) -->
-              <form id="form-log-{{ m.id }}" onsubmit="registrarLogManual(event, {{ m.id }})" class="small">
-                <div class="row g-1 mb-1">
-                  <div class="col-4">
-                    <select name="destinatario_tipo" class="form-select form-select-xs bg-dark text-white border-secondary" id="log-dest-tipo-{{ m.id }}" style="font-size:0.75rem;">
-                      <option value="Embarcador">Embarcador</option>
-                      <option value="Transportadora">Transp.</option>
-                    </select>
-                  </div>
-                  <div class="col-4">
-                    <select name="canal" class="form-select form-select-xs bg-dark text-white border-secondary" style="font-size:0.75rem;">
-                      <option value="WhatsApp">WhatsApp</option>
-                      <option value="E-mail">E-mail</option>
-                      <option value="Ligação">Ligação</option>
-                      <option value="Outro">Outro</option>
-                    </select>
-                  </div>
-                  <div class="col-4">
-                    <select name="status" class="form-select form-select-xs bg-dark text-white border-secondary" style="font-size:0.75rem;">
-                      <option value="Enviada manualmente">Enviada</option>
-                      <option value="Respondida">Respondida</option>
-                      <option value="Sem resposta">Sem resp.</option>
-                      <option value="Descartada">Descartada</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div class="row g-1 mb-1">
-                  <div class="col-6">
-                    <select name="resultado" id="log-resultado-{{ m.id }}" class="form-select form-select-xs bg-dark text-white border-secondary" style="font-size:0.72rem;">
-                      <option value="">Resultado do Contato</option>
-                      <option value="Sem resposta">Sem resposta</option>
-                      <option value="Respondeu">Respondeu</option>
-                      <option value="Pediu cotação">Pediu cotação</option>
-                      <option value="Não tem demanda agora">Sem demanda</option>
-                      <option value="Usa transportadora fixa">Transp. Fixa</option>
-                      <option value="Pediu retorno futuro">Retorno Futuro</option>
-                      <option value="Negociação aberta">Em negociação</option>
-                      <option value="Fechado">Fechado (Sucesso)</option>
-                      <option value="Perdido">Perdido</option>
-                    </select>
-                  </div>
-                  <div class="col-6">
-                    <select name="temperatura" id="log-temperatura-{{ m.id }}" class="form-select form-select-xs bg-dark text-white border-secondary" style="font-size:0.72rem;">
-                      <option value="Frio">Temp: Frio</option>
-                      <option value="Morno">Temp: Morno</option>
-                      <option value="Quente">Temp: Quente</option>
-                      <option value="Fechado">Temp: Fechado</option>
-                      <option value="Perdido">Temp: Perdido</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div class="row g-1 mb-1">
-                  <div class="col-6">
-                    <input type="text" name="proxima_acao" id="log-proxima-{{ m.id }}" class="form-control form-control-xs bg-dark text-white border-secondary" placeholder="Próxima ação..." style="font-size:0.72rem;">
-                  </div>
-                  <div class="col-6">
-                    <input type="date" name="data_proxima_acao" id="log-data-proxima-{{ m.id }}" class="form-control form-control-xs bg-dark text-white border-secondary" style="font-size:0.72rem;">
-                  </div>
-                </div>
-                
-                <div class="mb-1">
-                  <input type="text" name="observacao" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Observação comercial..." required style="font-size:0.75rem;">
-                </div>
-                <button type="submit" class="btn btn-xs btn-warning w-100 py-1" style="font-weight:600; font-size:0.75rem;">
-                  <i class="bi bi-journal-plus me-1"></i>Registrar Ação Comercial
-                </button>
-              </form>
-              
-              <!-- Listagem de logs recentes -->
-              <div class="mt-2 text-muted" style="font-size:0.7rem;">
-                <div class="text-white fw-bold mb-1" style="font-size: 0.72rem;">Histórico Recente</div>
-                <div id="prosp-hist-{{ m.id }}" style="max-height: 120px; overflow-y: auto;">
-                  Carregando histórico...
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          {# Form CRM Match #}
-          <form onsubmit="salvarCRMMatch(event, {{ m.id }})">
-            <div class="mb-2">
-              <label class="form-label small text-muted mb-1">Status Comercial do Match</label>
-              <select name="status" class="form-select form-select-sm">
-                {% for s in status_list %}
-                  <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>
-                    {{ status_labels[s][0] }}
-                  </option>
-                {% endfor %}
-              </select>
-            </div>
-            
-            <div class="mb-3">
-              <label class="form-label small text-muted mb-1">Notas Comerciais (Acompanhamento)</label>
-              <textarea name="notas" class="form-control form-control-sm" rows="4"
-                        placeholder="Registrar ligações comerciais conjuntas, fit de frete de retorno negociado...">{{ m.notas or '' }}</textarea>
-            </div>
-
-            <button type="submit" class="btn btn-sm w-100 text-dark font-weight-bold"
-                    style="background: var(--wins-amber); font-weight:600;">
-              <i class="bi bi-check-lg me-1"></i>Salvar Negociação de Match
-            </button>
-          </form>
-
-        </div>
-      </div>
       {% endfor %}
     </tbody>
   </table>
 </div>
 
-{# ── Paginação ────────────────────────────────────────────────────────────── #}
+{# ÔöÇÔöÇ Pagina├º├úo ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ #}
 {% if total_pages and total_pages > 1 %}
-{% set qs %}corredor={{ filtros.corredor }}&prioridade={{ filtros.prioridade }}&status={{ filtros.status }}&uf_origem={{ filtros.uf_origem }}&uf_destino={{ filtros.uf_destino }}&min_score={{ filtros.min_score }}&telefone={{ filtros.telefone }}&q={{ filtros.q }}&fu_vencido={{ filtros.fu_vencido }}&temperatura={{ filtros.temperatura }}&ordenar={{ filtros.ordenar }}{% endset %}
+{% set qs %}corredor={{ filtros.corredor }}&prioridade={{ filtros.prioridade }}&status={{ filtros.status }}&uf_origem={{ filtros.uf_origem }}&uf_destino={{ filtros.uf_destino }}&min_score={{ filtros.min_score }}&telefone={{ filtros.telefone }}&q={{ filtros.q }}&fu_vencido={{ filtros.fu_vencido }}&temperatura={{ filtros.temperatura }}&ordenar={{ filtros.ordenar }}&score_op_min={{ filtros.score_op_min }}&classif_op={{ filtros.classif_op }}{% endset %}
 <nav class="mt-3 d-flex justify-content-center">
   <ul class="pagination pagination-sm mb-0">
     <li class="page-item {% if page <= 1 %}disabled{% endif %}">
@@ -632,7 +545,7 @@
     {% set end   = [total_pages, page + 2]|min %}
     {% if start > 1 %}
       <li class="page-item"><a class="page-link" href="?{{ qs }}&page=1">1</a></li>
-      {% if start > 2 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+      {% if start > 2 %}<li class="page-item disabled"><span class="page-link">ÔÇª</span></li>{% endif %}
     {% endif %}
     {% for p in range(start, end + 1) %}
       <li class="page-item {% if p == page %}active{% endif %}">
@@ -640,7 +553,7 @@
       </li>
     {% endfor %}
     {% if end < total_pages %}
-      {% if end < total_pages - 1 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+      {% if end < total_pages - 1 %}<li class="page-item disabled"><span class="page-link">ÔÇª</span></li>{% endif %}
       <li class="page-item"><a class="page-link" href="?{{ qs }}&page={{ total_pages }}">{{ total_pages }}</a></li>
     {% endif %}
     <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
@@ -653,15 +566,291 @@
 {% else %}
 <div class="text-center py-5 text-muted">
   <i class="bi bi-cpu" style="font-size:2rem"></i>
-  <p class="mt-2">Use o botão acima para rodar o algoritmo de Match Preditivo cruzando a oferta de frotas e a demanda de embarcadores.</p>
+  <p class="mt-2">Use o bot├úo acima para rodar o algoritmo de Match Preditivo cruzando a oferta de frotas e a demanda de embarcadores.</p>
 </div>
 {% endif %}
 
 {% endblock %}
 
+
+{# ÔöÇÔöÇÔöÇ Offcanvas ├Ünico Reutiliz├ível (carregamento sob demanda) ÔöÇÔöÇÔöÇ #}
+<div class="offcanvas offcanvas-end" id="matchInteligenciaOffcanvas" style="width:420px">
+  <div class="offcanvas-header border-bottom" style="border-color:#334155 !important">
+    <div>
+      <h6 class="offcanvas-title mb-0" id="oc-title">An├ílise de Match</h6>
+      <small class="text-muted" id="oc-subtitle"></small>
+      <div id="oc-badges" class="d-flex flex-wrap gap-1 mt-1"></div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body" id="oc-body">
+    <div id="oc-loading" class="text-center py-5" style="display:none;">
+      <div class="spinner-border text-warning mb-2" role="status"></div>
+      <div class="text-muted">Carregando an├ílise...</div>
+    </div>
+    <div id="oc-error" class="text-center py-4" style="display:none;">
+      <div class="text-danger mb-2"><i class="bi bi-exclamation-triangle-fill" style="font-size:2rem;"></i></div>
+      <div class="text-muted mb-2" id="oc-error-msg">N├úo foi poss├¡vel carregar a an├ílise.</div>
+      <button class="btn btn-sm btn-outline-warning" onclick="retryLoadMatch()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Tentar novamente
+      </button>
+    </div>
+    <div id="oc-content"></div>
+  </div>
+</div>
+
 {% block scripts %}
 <script>
-// Carregar dados de prospecção e cadência dinamicamente ao abrir painel
+(function() {
+  'use strict';
+  window.matchCache = {};
+  var matchCache = window.matchCache;
+  var pendingRequests = {};
+  var currentMatchId = null;
+  var lastMatchId = null;
+  var offcanvasEl = document.getElementById('matchInteligenciaOffcanvas');
+
+  function esc(str) {
+    if (!str) return '';
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function badge(text, cls) {
+    var s = document.createElement('span');
+    s.className = 'badge ' + (cls || 'bg-secondary');
+    s.style.cssText = 'font-size:0.6rem;padding:2px 6px;';
+    s.textContent = text;
+    return s;
+  }
+
+  function showLoading() {
+    document.getElementById('oc-loading').style.display = '';
+    document.getElementById('oc-error').style.display = 'none';
+    document.getElementById('oc-content').style.display = 'none';
+    document.getElementById('oc-content').innerHTML = '';
+  }
+  function showError(msg) {
+    document.getElementById('oc-loading').style.display = 'none';
+    document.getElementById('oc-error').style.display = '';
+    document.getElementById('oc-error-msg').textContent = msg || 'N├úo foi poss├¡vel carregar a an├ílise.';
+    document.getElementById('oc-content').style.display = 'none';
+  }
+  function showContent(html) {
+    document.getElementById('oc-loading').style.display = 'none';
+    document.getElementById('oc-error').style.display = 'none';
+    document.getElementById('oc-content').style.display = '';
+    document.getElementById('oc-content').innerHTML = html;
+  }
+
+  function render(data) {
+    if (!data || !data.match_id) {
+      showContent('<div class="text-muted text-center py-4">Dados n├úo dispon├¡veis para este match.</div>');
+      return;
+    }
+    var o = data.origem || {}, d = data.destino || {};
+    var html = '';
+
+    html += '<div class="mb-3 p-2 bg-dark rounded small border border-secondary">';
+    html += '<div class="text-white fw-bold mb-1"><i class="bi bi-graph-up me-1 text-warning"></i>Resumo</div>';
+    html += '<div class="d-flex flex-wrap gap-3"><div><span class="text-muted">Score:</span> <strong class="text-info">' + esc(data.score_match_explicado) + '</strong></div>';
+    html += '<div><span class="text-muted">Retorno vazio:</span> <strong>' + esc(data.score_retorno_vazio) + '</strong></div>';
+    html += '<div><span class="text-muted">Confian├ºa:</span> <strong>' + esc(data.confianca_geral) + '</strong> <span class="text-muted">(' + esc(data.confianca_label) + ')</span></div>';
+    if (data.risco_penalidade) html += '<div><span class="text-muted">Risco:</span> <strong class="text-danger">-' + data.risco_penalidade + '%</strong></div>';
+    html += '</div></div>';
+
+    html += '<div class="mb-3 p-2 bg-dark rounded small border border-secondary">';
+    html += '<div class="text-info fw-bold mb-1"><i class="bi bi-truck me-1"></i>Origem</div>';
+    html += '<div class="mb-1"><span class="text-muted">' + esc(o.municipio) + '/' + esc(o.uf) + '</span>';
+    if (o.nivel_correspondencia) html += ' <span class="badge ' + (o.nivel_correspondencia == 'municipio_exato' ? 'bg-success' : 'bg-warning text-dark') + '" style="font-size:0.55rem;">' + esc(o.nivel_correspondencia) + '</span>';
+    html += '</div>';
+    html += '<div class="d-flex flex-wrap gap-2 mb-1"><span class="text-muted">Score:</span> <strong class="' + ((o.score_logistico||0) >= 50 ? 'text-success' : (o.score_logistico||0) >= 25 ? 'text-warning' : 'text-danger') + '">' + (o.score_logistico ?? 'N/A') + '</strong></div>';
+    var oi = [];
+    if (o.transportadores_qtd != null) oi.push('Transportadores: ' + o.transportadores_qtd);
+    if (o.cnpjs_logisticos_qtd != null) oi.push('CNPJs: ' + o.cnpjs_logisticos_qtd);
+    if (o.pontos_apoio_qtd != null) oi.push('Apoio: ' + o.pontos_apoio_qtd);
+    if (o.postos_anp_qtd != null) oi.push('Postos: ' + o.postos_anp_qtd);
+    if (oi.length) html += '<div class="text-muted" style="font-size:0.65rem;">' + oi.join(' | ') + '</div>';
+    html += '</div>';
+
+    html += '<div class="mb-3 p-2 bg-dark rounded small border border-secondary">';
+    html += '<div class="text-info fw-bold mb-1"><i class="bi bi-building me-1"></i>Destino</div>';
+    html += '<div class="mb-1"><span class="text-muted">' + esc(d.municipio) + '/' + esc(d.uf) + '</span>';
+    if (d.nivel_correspondencia) html += ' <span class="badge ' + (d.nivel_correspondencia == 'municipio_exato' ? 'bg-success' : 'bg-warning text-dark') + '" style="font-size:0.55rem;">' + esc(d.nivel_correspondencia) + '</span>';
+    html += '</div>';
+    html += '<div class="d-flex flex-wrap gap-2 mb-1"><span class="text-muted">Score:</span> <strong class="' + ((d.score_logistico||0) >= 50 ? 'text-success' : (d.score_logistico||0) >= 25 ? 'text-warning' : 'text-danger') + '">' + (d.score_logistico ?? 'N/A') + '</strong></div>';
+    var di = [];
+    if (d.transportadores_qtd != null) di.push('Transportadores: ' + d.transportadores_qtd);
+    if (d.cnpjs_logisticos_qtd != null) di.push('CNPJs: ' + d.cnpjs_logisticos_qtd);
+    if (d.pontos_apoio_qtd != null) di.push('Apoio: ' + d.pontos_apoio_qtd);
+    if (d.postos_anp_qtd != null) di.push('Postos: ' + d.postos_anp_qtd);
+    if (di.length) html += '<div class="text-muted" style="font-size:0.65rem;">' + di.join(' | ') + '</div>';
+    html += '</div>';
+
+    var oport = data.oportunidade || {};
+    if (oport.score_oportunidade != null) {
+      html += '<div class="mb-3 p-2 bg-dark rounded small border border-warning border-opacity-50">';
+      html += '<div class="text-warning fw-bold mb-1"><i class="bi bi-trophy me-1"></i>Oportunidade</div>';
+      html += '<div class="d-flex flex-wrap gap-2 mb-1"><span class="text-muted">Score:</span> <strong class="' + (oport.score_oportunidade >= 60 ? 'text-warning' : 'text-muted') + '">' + oport.score_oportunidade + '</strong> <span class="badge ' + (oport.classificacao_oportunidade == 'agir_agora' ? 'bg-warning text-dark' : oport.classificacao_oportunidade == 'alta_prioridade' ? 'bg-info' : oport.classificacao_oportunidade == 'acompanhar' ? 'bg-primary' : 'bg-secondary') + '" style="font-size:0.6rem;">' + (oport.classificacao_oportunidade || '') + '</span></div>';
+      html += '<div class="text-muted" style="font-size:0.68rem;">Próxima aç╟o: <strong class="text-light">' + (oport.proxima_acao_sugerida || '—') + '</strong></div>';
+      if (oport.motivos_prioridade && oport.motivos_prioridade.length) {
+        html += '<div class="mt-1" style="font-size:0.65rem;">';
+        oport.motivos_prioridade.forEach(function(m) { html += '<div><i class="bi bi-arrow-up-circle-fill text-warning" style="font-size:0.45rem;"></i> ' + esc(m) + '</div>'; });
+        html += '</div>';
+      }
+      if (oport.alertas_operacionais && oport.alertas_operacionais.length) {
+        html += '<div class="mt-1" style="font-size:0.65rem;">';
+        oport.alertas_operacionais.forEach(function(a) { html += '<span class="badge bg-danger bg-opacity-25 text-danger me-1" style="font-size:0.55rem;">' + esc(a) + '</span>'; });
+        html += '</div>';
+      }
+      if (oport.componentes && Object.keys(oport.componentes).length) {
+        html += '<div class="mt-2" style="font-size:0.6rem;">';
+        for (var k in oport.componentes) {
+          var c = oport.componentes[k];
+          var pct = c.maximo > 0 ? Math.min(c.pontos / c.maximo * 100, 100) : 0;
+          html += '<div class="mb-1"><span class="text-muted">' + k + ':</span> <span class="' + (pct >= 60 ? 'text-success' : pct >= 30 ? 'text-warning' : 'text-danger') + '">' + c.pontos + '</span>/' + c.maximo + ' <div class="progress" style="height:3px;"><div class="progress-bar ' + (pct >= 60 ? 'bg-success' : pct >= 30 ? 'bg-warning' : 'bg-danger') + '" style="width:' + pct + '%;"></div></div></div>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    var cs = data.componentes || {};
+    var hasComp = false;
+    var compHtml = '';
+    ['origem','destino'].forEach(function(side) {
+      var comps = cs[side];
+      if (!comps || Object.keys(comps).length === 0) return;
+      hasComp = true;
+      compHtml += '<div class="mb-2"><div class="text-muted fw-bold mb-1" style="font-size:0.7rem;text-transform:capitalize;">' + side + '</div>';
+      for (var k in comps) {
+        var c = comps[k];
+        if (c && c.maximo != null) {
+          var pct = c.maximo > 0 ? Math.min(c.pontos / c.maximo * 100, 100) : 0;
+          var color = pct >= 80 ? 'success' : pct >= 40 ? 'warning' : 'danger';
+          compHtml += '<div class="mb-1" style="font-size:0.68rem;"><span class="text-muted">' + k + ':</span> <span class="text-' + color + ' fw-bold">' + c.pontos + '</span>/' + c.maximo;
+          compHtml += ' <div class="progress" style="height:4px;"><div class="progress-bar bg-' + color + '" style="width:' + pct + '%"></div></div></div>';
+        }
+      }
+      compHtml += '</div>';
+    });
+    if (hasComp) {
+      html += '<div class="mb-3 p-2 bg-dark rounded small border border-secondary">';
+      html += '<div class="text-white fw-bold mb-1"><i class="bi bi-pie-chart me-1 text-warning"></i>Componentes</div>' + compHtml + '</div>';
+    }
+
+    var fps = data.fatores_positivos || [];
+    if (fps.length) {
+      html += '<div class="mb-3 p-2 bg-dark rounded small border border-success border-opacity-25">';
+      html += '<div class="text-success fw-bold mb-1"><i class="bi bi-check-circle me-1"></i>Fatores positivos</div><ul class="list-unstyled mb-0" style="font-size:0.68rem;">';
+      fps.forEach(function(f) { html += '<li><i class="bi bi-check-circle-fill text-success me-1" style="font-size:0.5rem;"></i>' + esc(f) + '</li>'; });
+      html += '</ul></div>';
+    }
+    var fas = data.fatores_atencao || [];
+    if (fas.length) {
+      html += '<div class="mb-3 p-2 bg-dark rounded small border border-warning border-opacity-25">';
+      html += '<div class="text-warning fw-bold mb-1"><i class="bi bi-exclamation-circle me-1"></i>Pontos de aten├º├úo</div><ul class="list-unstyled mb-0" style="font-size:0.68rem;">';
+      fas.forEach(function(f) { html += '<li><i class="bi bi-exclamation-circle-fill text-warning me-1" style="font-size:0.5rem;"></i>' + esc(f) + '</li>'; });
+      html += '</ul></div>';
+    }
+    var lims = data.limitacoes || [];
+    if (lims.length) {
+      html += '<div class="mb-3 p-2 bg-dark rounded small border border-secondary">';
+      html += '<div class="text-muted fw-bold mb-1"><i class="bi bi-info-circle me-1"></i>Limita├º├Áes</div><ul class="list-unstyled mb-0" style="font-size:0.65rem;color:#9ca3af;">';
+      lims.forEach(function(l) { html += '<li><i class="bi bi-dot me-1"></i>' + esc(l) + '</li>'; });
+      html += '</ul></div>';
+    }
+    showContent(html);
+  }
+
+  function updateBadges(data) {
+    var bd = document.getElementById('oc-badges');
+    bd.innerHTML = '';
+    if (!data) return;
+    var cls = data.classificacao || '';
+    var clbl = data.confianca_label || '';
+    var rv = data.score_retorno_vazio || 0;
+    var rp = data.risco_penalidade || 0;
+    var clsCls = cls == 'muito_forte' || cls == 'forte' ? 'bg-success' : cls == 'medio' ? 'bg-warning text-dark' : 'bg-secondary';
+    var confCls = clbl == 'alta' ? 'bg-success' : clbl == 'boa' ? 'bg-info' : clbl == 'parcial' ? 'bg-warning text-dark' : 'bg-secondary';
+    var rvCls = rv >= 40 ? 'bg-success' : rv >= 20 ? 'bg-warning text-dark' : 'bg-secondary';
+    bd.appendChild(badge('Classe: ' + cls, clsCls));
+    bd.appendChild(badge('Conf: ' + clbl, confCls));
+    bd.appendChild(badge('Retorno: ' + rv, rvCls));
+    if (rp > 0) bd.appendChild(badge('Risco: -' + rp + '%', 'bg-danger'));
+    var oport = data.oportunidade || {};
+    if (oport.score_oportunidade != null) {
+      var opCls = oport.classificacao_oportunidade == 'agir_agora' ? 'bg-warning text-dark' : oport.classificacao_oportunidade == 'alta_prioridade' ? 'bg-info' : oport.classificacao_oportunidade == 'acompanhar' ? 'bg-primary' : 'bg-secondary';
+      bd.appendChild(badge('Oport.: ' + oport.score_oportunidade, opCls));
+    }
+  }
+
+  async function loadMatch(mid) {
+    if (matchCache[mid]) {
+      updateBadges(matchCache[mid]);
+      render(matchCache[mid]);
+      return;
+    }
+    if (pendingRequests[mid]) {
+      var d = await pendingRequests[mid];
+      updateBadges(d);
+      render(d);
+      return;
+    }
+    showLoading();
+    var url = '/api/inteligencia/match/' + mid;
+    var prom = fetch(url, { method:'GET', credentials:'same-origin', headers:{'Accept':'application/json'} })
+      .then(function(r) {
+        var ct = r.headers.get('content-type') || '';
+        if (!r.ok) {
+          if (r.status === 404) throw new Error('Match n├úo encontrado.');
+          if (r.status === 302) throw new Error('Sess├úo expirou. Atualize a p├ígina.');
+          throw new Error('Erro HTTP ' + r.status);
+        }
+        if (ct.indexOf('application/json') === -1) throw new Error('Resposta inv├ílida.');
+        return r.json();
+      })
+      .then(function(data) {
+        matchCache[mid] = data;
+        delete pendingRequests[mid];
+        updateBadges(data);
+        render(data);
+      })
+      .catch(function(err) {
+        delete pendingRequests[mid];
+        showError(err.message);
+      });
+    pendingRequests[mid] = prom;
+    await prom;
+  }
+
+  window.retryLoadMatch = function() {
+    if (currentMatchId) loadMatch(currentMatchId);
+  };
+
+  if (offcanvasEl) {
+    offcanvasEl.addEventListener('show.bs.offcanvas', function(e) {
+      var t = e.relatedTarget;
+      if (!t) return;
+      var mid = t.getAttribute('data-match-id');
+      if (!mid) return;
+      currentMatchId = mid;
+      document.getElementById('oc-subtitle').textContent = 'Match #' + mid;
+      if (lastMatchId !== mid) {
+        document.getElementById('oc-content').innerHTML = '';
+        document.getElementById('oc-content').style.display = 'none';
+      }
+      document.getElementById('oc-badges').innerHTML = '';
+      lastMatchId = mid;
+      loadMatch(mid);
+    });
+  }
+})();
+</script>
+
+<script>
+// Carregar dados de prospec├º├úo e cad├¬ncia dinamicamente ao abrir painel
 async function carregarProspeccao(matchId) {
   const resp = await fetch(`/matches/${matchId}/prospeccao`);
   const data = await resp.json();
@@ -688,7 +877,7 @@ async function carregarProspeccao(matchId) {
       waTransp.classList.add('disabled');
     }
     
-    // Pre-popular campos de cadência com os dados atuais do Match
+    // Pre-popular campos de cad├¬ncia com os dados atuais do Match
     if (data.temperatura) {
       document.getElementById(`log-temperatura-${matchId}`).value = data.temperatura;
     }
@@ -709,7 +898,7 @@ async function carregarProspeccao(matchId) {
 function renderizarHistorico(matchId, logs) {
   const div = document.getElementById(`prosp-hist-${matchId}`);
   if (!logs || logs.length === 0) {
-    div.innerHTML = "<div>Nenhuma prospecção comercial registrada.</div>";
+    div.innerHTML = "<div>Nenhuma prospec├º├úo comercial registrada.</div>";
     return;
   }
   
@@ -721,7 +910,7 @@ function renderizarHistorico(matchId, logs) {
           <strong class="text-light">${l.canal} para ${l.destinatario_tipo}</strong>
           <span class="text-warning font-weight-bold">${l.status}</span>
         </div>
-        <div>${l.observacao || '—'}</div>
+        <div>${l.observacao || 'ÔÇö'}</div>
         <div class="text-muted" style="font-size:0.6rem;">${l.data}</div>
       </div>
     `;
@@ -736,10 +925,10 @@ async function copiarMensagem(textareaId, matchId, destTipo, status) {
   document.execCommand("copy");
   
   await logarAcao(matchId, 'Clipboard', destTipo, status);
-  alert("Abordagem copiada para a área de transferência!");
+  alert("Abordagem copiada para a ├írea de transfer├¬ncia!");
 }
 
-// Logar ação automática rápido
+// Logar a├º├úo autom├ítica r├ípido
 async function logarAcao(matchId, canal, destTipo, status) {
   const form = new FormData();
   form.append('canal', canal);
@@ -756,7 +945,7 @@ async function logarAcao(matchId, canal, destTipo, status) {
   }
 }
 
-// Registrar log manual do formulário
+// Registrar log manual do formul├írio
 async function registrarLogManual(e, matchId) {
   e.preventDefault();
   const form = e.target;
@@ -764,7 +953,7 @@ async function registrarLogManual(e, matchId) {
   
   const destTipo = document.getElementById(`log-dest-tipo-${matchId}`).value;
   data.append('destinatario_nome', destTipo === 'Embarcador' ? 'Lead Embarcador' : 'Lead Transportadora');
-  data.append('mensagem', `Abordagem registrada via formulário de histórico.`);
+  data.append('mensagem', `Abordagem registrada via formul├írio de hist├│rico.`);
   
   const r = await fetch(`/matches/${matchId}/prospeccao/log`, { method: 'POST', body: data });
   const d = await r.json();
@@ -775,11 +964,68 @@ async function registrarLogManual(e, matchId) {
     atualizarTabelaProspeccao(matchId, status);
     
     // Mensagem de sucesso
-    alert("Ação comercial e cadência de follow-up registradas!");
+    alert("A├º├úo comercial e cad├¬ncia de follow-up registradas!");
     
-    // Opcional: recarregar a página para aplicar o alerta visual de data vencida ou badge de temperatura na tabela principal
+    // Opcional: recarregar a p├ígina para aplicar o alerta visual de data vencida ou badge de temperatura na tabela principal
     window.location.reload();
   }
+}
+
+function invalidateBrowserMatchCache(matchId) {
+  if (window.matchCache) {
+    delete window.matchCache[matchId];
+  }
+  var ocBadge = document.getElementById('op-badge-' + matchId);
+  if (ocBadge) {
+    ocBadge.style.opacity = '0.5';
+    ocBadge.title = 'Cache invalidado — recarregue a p├ígina para novo c├ílculo';
+  }
+}
+
+function registrarResultadoModal(matchId) {
+  var resultados = ['contato_realizado', 'interessado', 'sem_interesse', 'sem_resposta', 'proposta_enviada', 'negociacao', 'fechado', 'perdido', 'dados_incorretos', 'duplicado', 'cancelado'];
+  var opts = resultados.map(function(r) { return '<option value="' + r + '">' + r.replace(/_/g, ' ') + '</option>'; }).join('');
+  var html = '<div class="mb-3 p-3 bg-dark rounded small border border-warning">';
+  html += '<div class="text-warning fw-bold mb-2"><i class="bi bi-check-circle me-1"></i>Registrar resultado</div>';
+  html += '<div class="mb-2"><label class="form-label small text-muted">Resultado</label>';
+  html += '<select id="res-select-' + matchId + '" class="form-select form-select-sm">' + opts + '</select></div>';
+  html += '<div class="mb-2"><label class="form-label small text-muted">Observa├º├úo</label>';
+  html += '<textarea id="res-obs-' + matchId + '" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Observa├º├úo opcional..."></textarea></div>';
+  html += '<div class="d-flex gap-2"><button class="btn btn-sm btn-warning" onclick="submitResultado(' + matchId + ')"><i class="bi bi-check-lg me-1"></i>Confirmar</button>';
+  html += '<button class="btn btn-sm btn-outline-secondary" onclick="cancelarResultadoModal(' + matchId + ')"><i class="bi bi-x me-1"></i>Cancelar</button></div>';
+  html += '</div>';
+  document.getElementById('oc-content').insertAdjacentHTML('afterbegin', html);
+}
+
+function submitResultado(matchId) {
+  var resultado = document.getElementById('res-select-' + matchId).value;
+  var observacao = document.getElementById('res-obs-' + matchId).value;
+  document.querySelector('#oc-content .border-warning').innerHTML = '<div class="text-center py-2"><div class="spinner-border spinner-border-sm text-warning me-2"></div>Registrando...</div>';
+  fetch('/api/matches/' + matchId + '/resultado', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({resultado: resultado, observacao: observacao, origem_interface: 'web'})
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) {
+      invalidateBrowserMatchCache(matchId);
+      if (window.carregarProspeccao) {
+        window.location.reload();
+      } else {
+        window.location.reload();
+      }
+    } else {
+      alert('Erro: ' + (d.erro || 'desconhecido'));
+      document.querySelector('#oc-content .border-warning').remove();
+    }
+  }).catch(function() {
+    alert('Erro de conex├úo. Tente novamente.');
+    document.querySelector('#oc-content .border-warning').remove();
+  });
+}
+
+function cancelarResultadoModal(matchId) {
+  var el = document.querySelector('#oc-content .border-warning');
+  if (el) el.remove();
 }
 
 function atualizarTabelaProspeccao(matchId, status) {
@@ -805,6 +1051,7 @@ function atualizarTabelaProspeccao(matchId, status) {
     const min = String(agora.getMinutes()).padStart(2, '0');
     dataSpan.textContent = `${dia}/${mes} ${hora}:${min}`;
   }
+  invalidateBrowserMatchCache(matchId);
 }
 
 async function salvarCRMMatch(e, id) {
@@ -819,7 +1066,7 @@ async function salvarCRMMatch(e, id) {
     badge.textContent = labels[json.status][0];
     badge.className = `badge badge-${json.status.toLowerCase().replace(' ', '_')}`;
     
-    const oc = bootstrap.Offcanvas.getInstance(document.getElementById(`painel-${id}`));
+    const oc = bootstrap.Offcanvas.getInstance(document.getElementById(`matchInteligenciaOffcanvas`));
     if (oc) oc.hide();
     
     // Recarregar para sincronizar temperaturas ou follow-up dates no CRM se alterados

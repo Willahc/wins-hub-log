@@ -27,9 +27,15 @@
     
     <ul class="sidebar-menu">
       <li>
-        <a href="/" class="menu-item-link {% if request.path == '/' %}active{% endif %}">
+        <a href="/dashboard" class="menu-item-link {% if request.path in ['/', '/dashboard'] %}active{% endif %}">
           <i class="bi bi-speedometer2"></i>
           <span>Dashboard</span>
+        </a>
+      </li>
+      <li>
+        <a href="/inteligencia" class="menu-item-link {% if request.path in ['/inteligencia', '/dados'] %}active{% endif %}">
+          <i class="bi bi-sign-turn-right"></i>
+          <span>Inteligência de Rota</span>
         </a>
       </li>
       <li>
@@ -78,6 +84,12 @@
         <a href="/followups" class="menu-item-link {% if request.path == '/followups' %}active{% endif %}">
           <i class="bi bi-calendar-event"></i>
           <span>Follow-ups</span>
+        </a>
+      </li>
+      <li>
+        <a href="/qualidade-score" class="menu-item-link {% if request.path == '/qualidade-score' %}active{% endif %}">
+          <i class="bi bi-bar-chart-steps"></i>
+          <span>Qualidade do Score</span>
         </a>
       </li>
     </ul>

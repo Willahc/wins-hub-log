@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Inteligência de Rota — WiNS Hub Log{% endblock %}
+{% block title_header %}Inteligência de Rota{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="text-white mb-0">Inteligência de Rota</h4>
+    <small class="text-muted">
+      Dados integrados (OSM, ANP, ANTT, RNTRC, CNPJ logístico, Comex, PRF, DNIT) —
+      <span class="{% if intel_health.status == 'ok' %}text-success{% else %}text-warning{% endif %}">
+        DB {{ intel_health.status }}{% if intel_health.database %} · {{ intel_health.database }}{% endif %}
+      </span>
+    </small>
+  </div>
+  <a href="/api/inteligencia/stats" class="btn btn-sm btn-outline-secondary" target="_blank">API stats JSON</a>
+</div>
+{% if not stats or stats.status == 'error' or stats.status == 'unconfigured' %}
+<div class="alert alert-warning">
+  Inteligência de rota indisponível.
+  {% if stats and stats.detail %}<code>{{ stats.detail }}</code>{% endif %}
+</div>
+{% else %}
+<div class="row g-3 mb-4">
+  {% set cards = [
+    ('Pontos de apoio', stats.total_pontos_apoio, 'bi-geo-alt', 'warning'),
+    ('Postos ANP', stats.total_postos, 'bi-fuel-pump', 'info'),
+    ('Transportadores RNTRC', stats.total_transportadores, 'bi-truck', 'success'),
+    ('CNPJ logísticos', stats.total_cnpj_logisticos, 'bi-building', 'primary'),
+    ('Trechos risco PRF', stats.total_risco_prf, 'bi-exclamation-triangle', 'danger'),
+    ('Fluxos Comex', stats.total_comex, 'bi-globe2', 'secondary'),
+    ('Pavimento DNIT', stats.total_dnit_pavimento, 'bi-sign-turn-right', 'light'),
+    ('Municípios score', stats.total_municipios_score, 'bi-bar-chart', 'warning')
+  ] %}
+  {% for label, val, icon, color in cards %}
+  <div class="col-6 col-md-3">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-body py-3">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi {{ icon }} text-{{ color }}"></i>
+          <small class="text-muted">{{ label }}</small>
+        </div>
+        <div class="fs-4 text-white fw-semibold">
+          {% if val is number %}{{ "{:,.0f}".format(val).replace(",", ".") }}{% else %}---{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header border-secondary text-white">Top UFs — pontos de apoio</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-dark mb-0">
+          <tbody>
+          {% for r in stats.top_uf_pontos_apoio or [] %}
+            <tr><td>{{ r.uf }}</td><td class="text-end">{{ r.total }}</td></tr>
+          {% else %}
+            <tr><td class="text-muted">Sem dados</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header border-secondary text-white">Top UFs — transportadores</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-dark mb-0">
+          <tbody>
+          {% for r in stats.top_uf_transportadores or [] %}
+            <tr><td>{{ r.uf }}</td><td class="text-end">{{ "{:,.0f}".format(r.total).replace(",", ".") if r.total is number else r.total }}</td></tr>
+          {% else %}
+            <tr><td class="text-muted">Sem dados</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header border-secondary text-white">BRs — maior risco PRF</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-dark mb-0">
+          <thead><tr><th>BR</th><th>UF</th><th class="text-end">Acidentes</th></tr></thead>
+          <tbody>
+          {% for r in stats.top_br_risco or [] %}
+            <tr>
+              <td>{{ r.br }}</td>
+              <td>{{ r.uf }}</td>
+              <td class="text-end">{{ r.total_acidentes }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="3" class="text-muted">Sem dados</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="row g-3 mt-1">
+  <div class="col-md-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header border-secondary text-white">Municípios com maior score logístico</div>
+      <div class="card-body p-0 table-responsive">
+        <table class="table table-sm table-dark mb-0">
+          <thead><tr><th>UF</th><th>Município</th><th class="text-end">Score</th><th class="text-end">Retorno</th><th>Classificação</th></tr></thead>
+          <tbody>
+          {% for r in stats.top_municipios_score or [] %}
+            <tr>
+              <td>{{ r.uf }}</td>
+              <td>{{ r.municipio }}</td>
+              <td class="text-end">{{ r.score_logistico }}</td>
+              <td class="text-end">{{ r.score_retorno_vazio }}</td>
+              <td><span class="badge {% if r.classificacao == 'muito_forte' %}bg-success{% elif r.classificacao == 'forte' %}bg-info{% elif r.classificacao == 'medio' %}bg-warning text-dark{% elif r.classificacao == 'fraco' %}bg-secondary{% else %}bg-dark text-muted{% endif %}">{{ r.classificacao }}</span></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-muted">Sem dados</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-header border-secondary text-white">Top municípios — score retorno vazio</div>
+      <div class="card-body p-0 table-responsive">
+        <table class="table table-sm table-dark mb-0">
+          <thead><tr><th>UF</th><th>Município</th><th class="text-end">Retorno</th><th class="text-end">Score</th><th>Classificação</th></tr></thead>
+          <tbody>
+          {% set top_retorno = stats.top_municipios_score|sort(attribute='score_retorno_vazio', reverse=True) if stats.top_municipios_score else [] %}
+          {% for r in top_retorno[:10] %}
+            <tr>
+              <td>{{ r.uf }}</td>
+              <td>{{ r.municipio }}</td>
+              <td class="text-end">{{ r.score_retorno_vazio }}</td>
+              <td class="text-end">{{ r.score_logistico }}</td>
+              <td><span class="badge {% if r.classificacao == 'muito_forte' %}bg-success{% elif r.classificacao == 'forte' %}bg-info{% elif r.classificacao == 'medio' %}bg-warning text-dark{% elif r.classificacao == 'fraco' %}bg-secondary{% else %}bg-dark text-muted{% endif %}">{{ r.classificacao }}</span></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-muted">Sem dados</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="mt-3 small text-muted">
+  APIs:
+  <a href="/api/inteligencia/health" class="text-warning">health</a> ·
+  <a href="/api/inteligencia/stats" class="text-warning">stats</a> ·
+  <a href="/api/inteligencia/score-municipio" class="text-warning">score-municipio</a> ·
+  <a href="/api/inteligencia/postos" class="text-warning">postos</a> ·
+  <a href="/api/inteligencia/pontos-apoio" class="text-warning">pontos-apoio</a> ·
+  <a href="/api/inteligencia/risco-rota" class="text-warning">risco-rota</a> ·
+  <a href="/api/inteligencia/transportadores" class="text-warning">transportadores</a>
+</div>
+{% endif %}
+{% endblock %}
